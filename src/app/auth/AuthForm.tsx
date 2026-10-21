@@ -9,6 +9,13 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
   const action = mode === "sign-in" ? signInWithEmail : signUpWithEmail;
   const [state, formAction, pending] = useActionState<AuthFormState, FormData>(action, null);
   const next = useSearchParams().get("next") || "/";
+  // Neon Auth's session cookie is always Secure. Safari won't store Secure cookies over plain http,
+  // even on localhost, so sign-in would appear to work and then fail. This form only renders in the browser.
+  const safariOnHttp =
+    typeof window !== "undefined" &&
+    window.location.protocol === "http:" &&
+    /Safari/.test(navigator.userAgent) &&
+    !/Chrome|Chromium|CriOS|Edg|Firefox|FxiOS/.test(navigator.userAgent);
 
   const other = mode === "sign-in" ? "/auth/sign-up" : "/auth/sign-in";
 
@@ -18,6 +25,12 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
         <span className="eyebrow">{mode === "sign-in" ? "Welcome back" : "Create your account"}</span>
         <h1>{mode === "sign-in" ? "Sign in to ProofNest" : "Start protecting your deposit"}</h1>
         <p className="muted">Your flats, photos and letters are private to your account.</p>
+        {safariOnHttp && (
+          <p className="notice" role="alert">
+            Safari can&apos;t keep you signed in on <b>http://</b>localhost. Open this page in Chrome, or run the app with{" "}
+            <code>npm run dev:https</code> and use https://localhost:3000.
+          </p>
+        )}
         <input type="hidden" name="next" value={next} />
         {mode === "sign-up" && (
           <div>
