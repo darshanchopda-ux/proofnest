@@ -1,0 +1,70 @@
+import "server-only";
+import { and, asc, count, desc, eq } from "drizzle-orm";
+import { db } from "@/db";
+import { agreements, charges, flats, photos, type Flat, type Photo } from "@/db/schema";
+import type { FlatDTO, PhotoDTO } from "@/lib/types";
+import { isUuid } from "@/lib/dal";
+
+export const EXAMPLE_CONTENT_TYPE = "example";
+
+export async function listFlats(userId: string) {
+  return db
+    .select({ id: flats.id, address: flats.address, isExample: flats.isExample, stage: flats.stage, createdAt: flats.createdAt })
+    .from(flats)
+    .where(eq(flats.userId, userId))
+    .orderBy(desc(flats.createdAt));
+}
+
+/** The flat if it exists and belongs to the user, otherwise null. */
+export async function getOwnedFlat(userId: string, flatId: string): Promise<Flat | null> {
+  if (!isUuid(flatId)) return null;
+  const [flat] = await db.select().from(flats).where(and(eq(flats.id, flatId), eq(flats.userId, userId))).limit(1);
+  return flat ?? null;
+}
+
+export function toPhotoDTO(p: Photo): PhotoDTO {
+  const isExample = p.contentType === EXAMPLE_CONTENT_TYPE;
+  return {
+    id: p.id,
+    n: p.n,
+    room: p.room,
+    condition: p.condition,
+    note: p.note,
+    src: isExample ? null : `/api/photos/${p.id}`,
+    isExample,
+    sha256: p.sha256,
+    takenAt: p.takenAt ? p.takenAt.toISOString() : null,
+    takenFrom: p.takenFrom,
+    addedAt: p.addedAt.toISOString(),
+  };
+}
+
+export async function getFlatDTO(userId: string, flatId: string): Promise<FlatDTO | null> {
+  const flat = await getOwnedFlat(userId, flatId);
+  if (!flat) return null;
+  const [photoRows, agreementRows, [chargeCount]] = await Promise.all([
+    db.select().from(photos).where(eq(photos.flatId, flat.id)).orderBy(asc(photos.n)),
+    db.select({ flatId: agreements.flatId }).from(agreements).where(eq(agreements.flatId, flat.id)).limit(1),
+    db.select({ value: count() }).from(charges).where(eq(charges.flatId, flat.id)),
+  ]);
+  return {
+    id: flat.id,
+    stage: flat.stage,
+    isExample: flat.isExample,
+    address: flat.address,
+    ownerName: flat.ownerName,
+    tenantName: flat.tenantName,
+    moveIn: flat.moveIn,
+    keysHandedOver: flat.keysHandedOver,
+    monthlyRent: flat.monthlyRent,
+    deposit: flat.deposit,
+    refundDays: flat.refundDays,
+    rooms: flat.rooms,
+    evidenceNotes: flat.evidenceNotes,
+    deductionsText: flat.deductionsText,
+    letter: flat.letter,
+    photos: photoRows.map(toPhotoDTO),
+    hasAgreement: agreementRows.length > 0,
+    chargeCount: chargeCount?.value ?? 0,
+  };
+}

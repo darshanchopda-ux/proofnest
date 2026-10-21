@@ -1,36 +1,54 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ProofNest
 
-## Getting Started
+Helps tenants in India get their security deposit back: record the flat's condition at move-in, check the owner's deductions against those photos, and send a refund letter.
 
-First, run the development server:
+## Stack
+
+| Layer | What |
+|---|---|
+| Frontend and server | Next.js 16 (App Router, Cache Components), deployed on Vercel |
+| Database | Neon Postgres (project `proofnest`, Singapore) via Drizzle ORM |
+| Sign-in | Neon Auth (Managed Better Auth), email and password |
+| Files | Vercel Blob, **private** store. Photos are only served through `/api/photos/[id]` after an ownership check |
+| AI (Phase 2) | n8n workflows calling the Claude API |
+
+## Run it locally
 
 ```bash
+cp .env.example .env.local   # then fill in the values
+npm install
+npm run db:migrate           # applies drizzle/*.sql to Neon
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+| Variable | Where it comes from |
+|---|---|
+| `DATABASE_URL` | Neon console, pooled connection string |
+| `NEON_AUTH_BASE_URL` | Neon console, Auth settings |
+| `NEON_AUTH_COOKIE_SECRET` | `openssl rand -base64 32` |
+| `BLOB_READ_WRITE_TOKEN` | Vercel project, Storage, the private Blob store |
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Database
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Schema lives in `src/db/schema.ts`. After changing it:
 
-## Learn More
+```bash
+npm run db:generate -- --name describe_the_change
+npm run db:migrate
+```
 
-To learn more about Next.js, take a look at the following resources:
+`flats.user_id` references `neon_auth."user"`. Neon Auth owns that table, so the foreign key is a hand-written migration (`drizzle/0001_auth_fk.sql`).
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Where things are
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- `src/app/page.tsx`: welcome screen and the signed-in user's flats
+- `src/app/flats/new`: two-step setup
+- `src/app/flats/[id]`: the flat workspace (header, steps, "What to do next", move-in record)
+- `src/app/flats/actions.ts`: server actions; every one re-checks the session and flat ownership
+- `src/app/api/upload`: issues Blob upload tokens limited to the flat's own folder
+- `src/app/api/photos/[id]`: streams a private photo to its owner
+- `src/lib/photo-client.ts`: EXIF capture time and SHA-256 fingerprint, computed in the browser
 
-## Deploy on Vercel
+## Status
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Phase 1 (foundation) is in: sign-in, flats, rooms, photo upload with capture time and fingerprint, details, WhatsApp summary. The deduction check, refund letter and rent agreement reading come next.
