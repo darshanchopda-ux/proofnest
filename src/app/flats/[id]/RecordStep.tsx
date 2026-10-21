@@ -8,6 +8,7 @@ import { addRoom, deletePhoto, removeRoom, updatePhoto } from "@/app/flats/actio
 import { roomStats } from "@/lib/guidance";
 import { fmtDate, plural } from "@/lib/format";
 import { CONDITIONS, type Condition, type FlatDTO, type FlatPatch, type PhotoDTO } from "@/lib/types";
+import { OwnerConfirm } from "./OwnerConfirm";
 
 type Props = {
   flat: FlatDTO;
@@ -101,6 +102,8 @@ export function RecordStep({ flat, setFlat, pending, freshIds, onFiles, onZoom, 
           onRemove={() => dropRoom(r.name)}
         />
       ))}
+
+      {flat.photos.length > 0 && <OwnerConfirm flat={flat} setFlat={setFlat} />}
 
       <div className="evidence-field">
         <label className="lab" htmlFor="f-evidence">Other evidence</label>

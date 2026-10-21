@@ -21,6 +21,7 @@ export const flatStage = pgEnum("flat_stage", ["movein", "moveout"]);
 export const photoCondition = pgEnum("photo_condition", ["good", "worn", "damaged"]);
 export const chargeDecision = pgEnum("charge_decision", ["already_there", "wear_and_tear", "no_receipt", "check", "likely_valid"]);
 export const aiKind = pgEnum("ai_kind", ["agreement", "check", "letter"]);
+export const ownerReviewStatus = pgEnum("owner_review_status", ["pending", "confirmed", "disputed"]);
 
 export const flats = pgTable(
   "flats",
@@ -140,7 +141,34 @@ export const aiRuns = pgTable(
   (t) => [index("ai_runs_flat_idx").on(t.flatId)],
 );
 
+/** One photo exactly as the owner was shown it, so a confirmation always refers to a fixed record. */
+export type ReviewPhoto = { id: string; n: number; room: string; condition: "good" | "worn" | "damaged"; note: string; sha256: string; takenAt: string | null; takenFrom: string };
+
+/**
+ * A link the tenant sends the owner (usually on WhatsApp) to confirm the move-in record without an account.
+ * The photos are copied into `photos` when the link is made; the owner's answer is written once and never changed.
+ */
+export const ownerReviews = pgTable(
+  "owner_reviews",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    flatId: uuid("flat_id").notNull().references(() => flats.id, { onDelete: "cascade" }),
+    token: text("token").notNull(),
+    photos: jsonb("photos").$type<ReviewPhoto[]>().notNull(),
+    // SHA-256 of the photo list above, so the record the owner confirmed can be identified later.
+    recordHash: text("record_hash").notNull(),
+    status: ownerReviewStatus("status").notNull().default("pending"),
+    ownerName: text("owner_name").notNull().default(""),
+    ownerNote: text("owner_note").notNull().default(""),
+    respondedAt: timestamp("responded_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  },
+  (t) => [uniqueIndex("owner_reviews_token_uq").on(t.token), index("owner_reviews_flat_idx").on(t.flatId)],
+);
+
 export type Flat = typeof flats.$inferSelect;
 export type Photo = typeof photos.$inferSelect;
 export type Agreement = typeof agreements.$inferSelect;
 export type Charge = typeof charges.$inferSelect;
+export type OwnerReview = typeof ownerReviews.$inferSelect;

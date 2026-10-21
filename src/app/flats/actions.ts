@@ -1,13 +1,14 @@
 "use server";
 
-import { and, eq, sql } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
-import { agreements, charges, flats, photos } from "@/db/schema";
+import { agreements, charges, flats, ownerReviews, photos } from "@/db/schema";
 import { removeBlobs } from "@/lib/blobs";
 import { isUuid, requireUser } from "@/lib/dal";
 import { EXAMPLE_CONTENT_TYPE, getOwnedFlat, toChargeDTO, toPhotoDTO } from "@/lib/flats";
-import type { ChargeDTO, Condition, Decision, FlatPatch, NewFlatInput, PhotoDTO } from "@/lib/types";
+import { isStale, latestReview, newReviewToken, recordHash, snapshotPhotos, toOwnerReviewDTO } from "@/lib/owner-review";
+import type { ChargeDTO, Condition, Decision, FlatPatch, NewFlatInput, OwnerReviewDTO, PhotoDTO } from "@/lib/types";
 
 export type Result<T = null> = { ok: true; data: T } | { ok: false; error: string };
 
@@ -303,6 +304,32 @@ export async function deleteCharge(flatId: string, chargeId: string): Promise<Re
   if (!flat || !isUuid(chargeId)) return NOT_FOUND;
   await db.delete(charges).where(and(eq(charges.id, chargeId), eq(charges.flatId, flat.id)));
   return { ok: true, data: null };
+}
+
+/**
+ * Returns the link for the owner to confirm the move-in record, making one if needed. A link that's still
+ * waiting is reused while the photos are unchanged; otherwise a new one is made and an unanswered old one stops working.
+ */
+export async function getOwnerReviewLink(flatId: string): Promise<Result<OwnerReviewDTO>> {
+  const user = await requireUser();
+  const flat = await getOwnedFlat(user.id, flatId);
+  if (!flat) return NOT_FOUND;
+  const rows = await db.select().from(photos).where(eq(photos.flatId, flat.id)).orderBy(asc(photos.n));
+  if (!rows.length) return { ok: false, error: "Add your move-in photos first, then ask your owner to confirm them." };
+
+  const current = await latestReview(flat.id);
+  if (current && current.status === "pending" && !current.revokedAt && !isStale(current, rows)) {
+    return { ok: true, data: toOwnerReviewDTO(current, rows) };
+  }
+  if (current && current.status === "pending" && !current.revokedAt) {
+    await db.update(ownerReviews).set({ revokedAt: new Date() }).where(eq(ownerReviews.id, current.id));
+  }
+  const snapshot = snapshotPhotos(rows);
+  const [row] = await db
+    .insert(ownerReviews)
+    .values({ flatId: flat.id, token: newReviewToken(), photos: snapshot, recordHash: recordHash(snapshot) })
+    .returning();
+  return { ok: true, data: toOwnerReviewDTO(row, rows) };
 }
 
 /** Deletes the flat's rent agreement and its files. */

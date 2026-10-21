@@ -71,6 +71,7 @@ export type FlatDTO = {
   letter: string;
   photos: PhotoDTO[];
   agreement: AgreementDTO | null;
+  ownerReview: OwnerReviewDTO | null;
   charges: ChargeDTO[];
   analyzedAt: string | null;
 };
@@ -94,6 +95,21 @@ export type AgreementDTO = {
   readAt: string | null;
   /** True once the tenant has applied or set aside the suggested flat details. */
   reviewed: boolean;
+};
+
+export type OwnerReviewDTO = {
+  /** Secret part of the owner's link: /confirm/<token>. */
+  token: string;
+  status: "pending" | "confirmed" | "disputed";
+  /** The P-numbers the owner was shown. */
+  photoNs: number[];
+  ownerName: string;
+  ownerNote: string;
+  createdAt: string;
+  respondedAt: string | null;
+  recordHash: string;
+  /** True when the photos have changed since the link was made. */
+  stale: boolean;
 };
 
 /** Fields the details panel may edit. */

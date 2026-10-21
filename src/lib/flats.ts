@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { agreements, charges, flats, photos, type Agreement, type Charge, type Flat, type Photo } from "@/db/schema";
 import type { AgreementDTO, ChargeDTO, FlatDTO, PhotoDTO } from "@/lib/types";
 import { isUuid } from "@/lib/dal";
+import { latestReview, toOwnerReviewDTO } from "@/lib/owner-review";
 
 export const EXAMPLE_CONTENT_TYPE = "example";
 
@@ -74,10 +75,11 @@ export async function listCharges(flatId: string): Promise<ChargeDTO[]> {
 export async function getFlatDTO(userId: string, flatId: string): Promise<FlatDTO | null> {
   const flat = await getOwnedFlat(userId, flatId);
   if (!flat) return null;
-  const [photoRows, agreementRows, chargeList] = await Promise.all([
+  const [photoRows, agreementRows, chargeList, review] = await Promise.all([
     db.select().from(photos).where(eq(photos.flatId, flat.id)).orderBy(asc(photos.n)),
     db.select().from(agreements).where(eq(agreements.flatId, flat.id)).limit(1),
     listCharges(flat.id),
+    latestReview(flat.id),
   ]);
   return {
     id: flat.id,
@@ -97,6 +99,7 @@ export async function getFlatDTO(userId: string, flatId: string): Promise<FlatDT
     letter: flat.letter,
     photos: photoRows.map(toPhotoDTO),
     agreement: agreementRows[0] ? toAgreementDTO(agreementRows[0]) : null,
+    ownerReview: review ? toOwnerReviewDTO(review, photoRows) : null,
     charges: chargeList,
     analyzedAt: flat.analyzedAt ? flat.analyzedAt.toISOString() : null,
   };

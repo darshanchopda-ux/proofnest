@@ -1,5 +1,5 @@
 import type { IconName } from "@/components/Icon";
-import { fmtDate, listWords, money, plural } from "./format";
+import { fmtDate, fmtIST, listWords, money, plural } from "./format";
 import { CONDITIONS, DISPUTED, type ChargeDTO, type FlatDTO, type Step } from "./types";
 
 export type RoomStat = { name: string; count: number };
@@ -36,6 +36,7 @@ export type NextButton =
   | { kind: "step"; label: string; step: Step; icon?: IconName }
   | { kind: "copy-summary"; label: string }
   | { kind: "link"; label: string; href: string; icon: IconName }
+  | { kind: "owner"; label: string }
   | { kind: "run-check"; label: string }
   | { kind: "copy-letter"; label: string };
 
@@ -64,13 +65,43 @@ export function nextAction(flat: FlatDTO): NextAction {
         primary: { kind: "upload", label: `Add ${names[0]} photos`, room: names[0] },
       };
     }
+    const pdf: NextButton = { kind: "link", label: "Move-in record (PDF)", href: `/flats/${flat.id}/report`, icon: "download" };
+    const r = flat.ownerReview;
+    if (r && !r.stale && r.status === "confirmed") {
+      return {
+        key: "confirmed",
+        icon: "check",
+        title: `${r.ownerName} confirmed your move-in record`,
+        text: `Confirmed ${fmtIST(r.respondedAt!)}. It's on your move-in record. Keep this flat in ProofNest until you move out.`,
+        secondary: pdf,
+      };
+    }
+    if (r && !r.stale && r.status === "disputed") {
+      return {
+        key: "disputed",
+        icon: "alert",
+        title: `${r.ownerName} said something isn't right`,
+        text: `“${r.ownerNote}” Fix or explain it, then send a new link.`,
+        primary: { kind: "owner", label: "See their answer" },
+      };
+    }
+    if (r && !r.stale) {
+      return {
+        key: "waiting",
+        icon: "chat",
+        title: "Waiting for your owner to confirm",
+        text: "Send them the link on WhatsApp if you haven't yet. Their answer shows up here as soon as they tap confirm.",
+        primary: { kind: "owner", label: "Send the link" },
+        secondary: pdf,
+      };
+    }
     return {
       key: "share",
       icon: "chat",
-      title: "Record complete. Send it to your owner today.",
-      text: "Save your move-in record as a PDF and send it with the message on WhatsApp. Once your owner has it, they can't say the flat was different when you moved in.",
-      primary: { kind: "copy-summary", label: "Copy WhatsApp message" },
-      secondary: { kind: "link", label: "Move-in record (PDF)", href: `/flats/${flat.id}/report`, icon: "download" },
+      title: "Record complete. Ask your owner to confirm it today.",
+      text: "Send them a link on WhatsApp. They look through your photos and confirm in one tap, with no account, so they can't say later the flat was different.",
+      primary: { kind: "owner", label: "Ask owner to confirm" },
+      secondary: pdf,
     };
   }
   if (!flat.charges.length) {

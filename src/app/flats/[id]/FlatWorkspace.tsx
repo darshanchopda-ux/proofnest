@@ -262,7 +262,20 @@ export function FlatWorkspace({ initialFlat, initialStep }: { initialFlat: FlatD
   return (
     <div className="wrap case">
       <CaseHead flat={flat} reading={agRead.phase !== "idle"} onEdit={() => setDrawerOpen(true)} onAgreement={() => setAgreementOpen(true)} />
-      <NextCard flat={flat} step={step} onStep={goStep} onFiles={addPhotos} onCopy={copySummary} onRunCheck={runCheck} onCopyLetter={copyLetter} running={check.running} />
+      <NextCard
+        flat={flat}
+        step={step}
+        onStep={goStep}
+        onFiles={addPhotos}
+        onCopy={copySummary}
+        onRunCheck={runCheck}
+        onCopyLetter={copyLetter}
+        onOwner={() => {
+          if (step !== "record") goStep("record");
+          setTimeout(() => document.getElementById("owner-confirm")?.scrollIntoView({ behavior: "smooth", block: "center" }), 80);
+        }}
+        running={check.running}
+      />
       <div className="folder">
       <Stepper flat={flat} step={step} onStep={goStep} />
       <section className="panel enter" key={animKey} role="region" aria-label={STEPS.find((s) => s.id === step)?.title}>
@@ -360,6 +373,13 @@ function CaseHead({ flat, reading, onEdit, onAgreement }: { flat: FlatDTO; readi
           </div>
         )}
         {refundBox}
+        {flat.ownerReview && (
+          <div className={`kv ${flat.ownerReview.status === "confirmed" ? "ok" : flat.ownerReview.status === "disputed" ? "soon" : ""}`}>
+            <span>Owner</span>
+            <b>{flat.ownerReview.status === "confirmed" ? "Confirmed" : flat.ownerReview.status === "disputed" ? "Disagreed" : "Asked"}</b>
+            <small>{flat.ownerReview.respondedAt ? fmtDate(flat.ownerReview.respondedAt) : "Waiting for an answer"}</small>
+          </div>
+        )}
         <button className="kv kv-btn" type="button" onClick={onAgreement}>
           <span>Rent agreement</span>
           {reading ? (
@@ -418,6 +438,7 @@ function NextCard({
   onCopy,
   onRunCheck,
   onCopyLetter,
+  onOwner,
   running,
 }: {
   flat: FlatDTO;
@@ -427,6 +448,7 @@ function NextCard({
   onCopy: () => void;
   onRunCheck: () => void;
   onCopyLetter: () => void;
+  onOwner: () => void;
   running: boolean;
 }) {
   const action = nextAction(flat);
@@ -451,6 +473,13 @@ function NextCard({
       return (
         <button className={`btn small ${cls}`} type="button" onClick={onCopyLetter}>
           <Icon name="copy" small />{b.label}
+        </button>
+      );
+    }
+    if (b.kind === "owner") {
+      return (
+        <button className={`btn small ${cls}`} type="button" onClick={onOwner}>
+          <Icon name="chat" small />{b.label}
         </button>
       );
     }

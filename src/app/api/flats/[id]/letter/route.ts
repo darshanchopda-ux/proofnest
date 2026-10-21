@@ -6,6 +6,7 @@ import { agreementSummary, aiOptions, flatFacts, logRun, overRunLimit, photoMeta
 import { getCurrentUser } from "@/lib/dal";
 import { getOwnedFlat, listCharges } from "@/lib/flats";
 import { fmtDate } from "@/lib/format";
+import { evidenceWithOwnerReview } from "@/lib/owner-review";
 import { callWorkflow } from "@/lib/n8n";
 
 export const maxDuration = 300;
@@ -35,7 +36,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     today: fmtDate(new Date()),
     charges: chargeList,
     citedPhotos: allPhotos.filter((p) => cited.has(p.n)).map(photoMeta),
-    evidence: flat.evidenceNotes,
+    evidence: await evidenceWithOwnerReview(flat.id, flat.evidenceNotes),
     agreement: await agreementSummary(flat.id),
   });
   await logRun(flat.id, "letter", started, reply.ok ? { ok: true, model: reply.model, usage: reply.usage } : { ok: false, error: reply.error, model: reply.model, usage: reply.usage });

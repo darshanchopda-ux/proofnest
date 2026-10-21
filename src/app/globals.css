@@ -486,3 +486,38 @@ footer.foot { padding-block: 28px 34px; font-size: .8rem; color: var(--muted); b
   .rp-ph { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   a { color: inherit; text-decoration: none; }
 }
+
+/* owner's confirmation page (opened from a WhatsApp link, no account) */
+body:has(.owner-page) .usermenu { display: none; }
+.owner-page { padding-block: 26px 40px; display: grid; gap: 22px; max-width: 900px; }
+.op-head { display: grid; gap: 10px; padding-bottom: 18px; border-bottom: 3px double var(--rule-strong); }
+.op-head h1 { font-size: clamp(1.5rem, 4.4vw, 2.1rem); line-height: 1.15; }
+.op-head p:last-child { max-width: 64ch; }
+.op-form { display: grid; gap: 14px; padding: 20px; background: var(--manila); border: 1px solid var(--rule-strong); border-top: 4px solid var(--accent); }
+.op-form h2 { font-size: 1.3rem; }
+.op-form input, .op-form textarea { background: var(--sheet); }
+.op-form textarea { min-height: 110px; }
+.op-buttons { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.op-dispute { display: grid; gap: 10px; }
+.op-answer { display: grid; gap: 6px; padding: 18px 20px; background: var(--sheet); border: 1px solid var(--rule-strong); border-left: 4px solid var(--ok); }
+.op-answer.disputed { border-left-color: var(--warn); }
+.op-answer b { display: inline-flex; align-items: center; gap: 8px; font-family: var(--display); font-size: 1.25rem; font-weight: 600; }
+.op-answer.confirmed b { color: var(--ok); }
+.op-answer span { font-size: .86rem; color: var(--muted); }
+.op-answer blockquote { margin: 4px 0; padding-left: 12px; border-left: 2px solid var(--rule-strong); font-family: var(--display); font-style: italic; }
+@media (max-width: 640px) {
+  .op-buttons .btn { flex: 1 1 100%; }
+}
+.owner-confirm { margin-top: 22px; padding: 16px 18px; display: grid; gap: 10px; background: var(--manila); border: 1px solid var(--rule-strong); border-left: 4px solid var(--accent); scroll-margin-top: 90px; }
+.owner-confirm.confirmed { background: var(--ok-soft); border-left-color: var(--ok); }
+.owner-confirm.disputed { border-left-color: var(--warn); }
+.owner-confirm h3 { font-size: 1.15rem; }
+.owner-confirm p { max-width: 68ch; }
+.owner-confirm blockquote { margin: 0; padding-left: 12px; border-left: 2px solid var(--rule-strong); font-family: var(--display); font-style: italic; }
+.oc-state { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-weight: 600; }
+.oc-state .dotp { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); display: inline-block; animation: blink 1.4s infinite; }
+.oc-state.ok { color: var(--ok); }
+.oc-state.warn { color: var(--warn); }
+.rp-owner { display: grid; gap: 4px; padding: 12px 14px; border-left: 4px solid var(--ok); background: var(--ok-soft); break-inside: avoid; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.rp-owner.disputed { border-left-color: var(--warn); background: var(--warn-soft); }
+.rp-owner code { font-family: var(--mono); font-size: .66rem; color: var(--muted); overflow-wrap: anywhere; }

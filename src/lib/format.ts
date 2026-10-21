@@ -30,6 +30,11 @@ export function fmtDate(value: string | number | Date | null | undefined, withTi
   return new Date(ms).toLocaleString("en-IN", options);
 }
 
+/** Date and time in IST whatever the device's or server's time zone, for records about flats in India. */
+export function fmtIST(value: string | number | Date): string {
+  return new Date(value).toLocaleString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit", timeZone: "Asia/Kolkata" }) + " IST";
+}
+
 export function todayISO(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;

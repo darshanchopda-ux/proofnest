@@ -1,14 +1,9 @@
 import Link from "next/link";
 import { BrandMark, Icon } from "@/components/Icon";
-import { fmtDate, money, plural } from "@/lib/format";
+import { fmtDate, fmtIST as ist, money, plural } from "@/lib/format";
 import { roomStats } from "@/lib/guidance";
 import { CONDITIONS, type FlatDTO, type PhotoDTO } from "@/lib/types";
 import { PrintButton } from "./PrintButton";
-
-/** Times are shown in IST whatever the server's time zone, since the record is for flats in India. */
-function ist(value: string | Date): string {
-  return new Date(value).toLocaleString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit", timeZone: "Asia/Kolkata" }) + " IST";
-}
 
 export function Report({ flat }: { flat: FlatDTO }) {
   const rooms = roomStats(flat);
@@ -62,6 +57,24 @@ export function Report({ flat }: { flat: FlatDTO }) {
             file, so anyone can check later that it hasn&apos;t been changed.
           </p>
         </header>
+
+        {flat.ownerReview?.respondedAt && (
+          <section className={`rp-owner ${flat.ownerReview.status}`}>
+            {flat.ownerReview.status === "confirmed" ? (
+              <p>
+                <b>Confirmed by the owner.</b> {flat.ownerReview.ownerName} confirmed photos{" "}
+                {flat.ownerReview.photoNs.map((n) => `P${n}`).join(", ")} on {ist(flat.ownerReview.respondedAt)}, through a link the tenant
+                sent them.
+                {flat.ownerReview.stale ? " Photos added or changed after that aren't covered." : ""}
+              </p>
+            ) : (
+              <p>
+                <b>The owner disagreed.</b> On {ist(flat.ownerReview.respondedAt)}, {flat.ownerReview.ownerName} wrote: &ldquo;{flat.ownerReview.ownerNote}&rdquo;
+              </p>
+            )}
+            <code>Record fingerprint (SHA-256) {flat.ownerReview.recordHash}</code>
+          </section>
+        )}
 
         {flat.photos.length === 0 ? (
           <p className="notice no-print">No photos yet. Add photos of each room on your flat page, then come back to make this record.</p>

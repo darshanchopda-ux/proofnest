@@ -15,6 +15,13 @@
       "when": 1792582968985,
       "tag": "0001_auth_fk",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792606819983,
+      "tag": "0002_owner_reviews",
+      "breakpoints": true
     }
   ]
 }

@@ -5,6 +5,7 @@ import { charges, flats, photos } from "@/db/schema";
 import { agreementSummary, aiOptions, flatFacts, imageFileForAI, logRun, overRunLimit, photoForAI, photoMeta, pickPhotos } from "@/lib/ai";
 import { getCurrentUser } from "@/lib/dal";
 import { getOwnedFlat, listCharges } from "@/lib/flats";
+import { evidenceWithOwnerReview } from "@/lib/owner-review";
 import { callWorkflow } from "@/lib/n8n";
 import type { Decision } from "@/lib/types";
 
@@ -53,7 +54,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     ...aiOptions(),
     flat: flatFacts(flat),
     deductions,
-    evidence: flat.evidenceNotes,
+    evidence: await evidenceWithOwnerReview(flat.id, flat.evidenceNotes),
     photos: allPhotos.map(photoMeta),
     images: images.filter(Boolean),
     screenshot,
