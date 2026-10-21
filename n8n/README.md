@@ -16,7 +16,7 @@ Each workflow: **ProofNest webhook** (checks a shared secret) → **Build Gemini
    - **Gemini API key**: Name `x-goog-api-key`, Value = a free key from aistudio.google.com → *Get API key*. Under *Allowed HTTP Request Domains*, choose *Specific domains* and enter `generativelanguage.googleapis.com`.
 2. **Import both workflows**: Workflows → Create → ⋯ menu → *Import from file* → pick `workflows/proofnest-check.json`. Repeat for `proofnest-letter.json`.
 3. In each workflow, open **ProofNest webhook** and choose the *ProofNest shared secret* credential. Open **Call Gemini API** and choose the *Gemini API key* credential. Save.
-4. **Activate** both workflows (toggle at the top right). Only active workflows answer on the production URL.
+4. **Publish** both workflows (button at the top right). Only published workflows answer on the production URL.
 5. Copy the webhook's **Production URL** base, everything before `/proofnest-check`, for example `https://pgp27-n8n.mesaschool.co.in/webhook`. Send it to whoever runs ProofNest's Vercel settings, or set it yourself:
 
    ```bash
@@ -45,7 +45,9 @@ Then re-import the changed workflow in n8n, or paste the new code into its Code 
 
 - `POST https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent`, key in the `x-goog-api-key` header.
 - The check asks for JSON (`generationConfig.responseMimeType` `application/json` with a `responseSchema`) so the reply parses; the reader also strips a code fence if one appears.
-- Free tier: Google applies per-minute and per-day limits (see your limits in AI Studio). A quota error comes back to ProofNest as `{ ok: false, code: "busy" }` with a "try again" message. If the daily limit is too low, change `MODEL` at the top of both *Build Gemini request* nodes to `gemini-3.5-flash-lite`.
+- Thinking is set to `LOW` (`generationConfig.thinkingConfig.thinkingLevel`). Gemini's own default took 142 seconds and about 16,000 output tokens for a three-charge check; thinking tokens count toward `maxOutputTokens` (32,768 for the check, 16,384 for the letter).
+- Free tier: Google applies per-minute and per-day limits (see your limits in AI Studio). A quota error comes back to ProofNest as `{ ok: false, code: "busy" }` with a "try again" message.
+- To change the model or thinking level without editing n8n, set `AI_MODEL` (for example `gemini-3.5-flash-lite` if the daily limit is too low) or `AI_THINKING_LEVEL` (`minimal`, `low`, `medium`, `high`, or `default` for Gemini's own) in ProofNest's Vercel settings and redeploy. ProofNest sends them with each request.
 - Privacy: on the free tier, Google may use what you send, including photos, to improve its products. The paid tier doesn't. ProofNest says this next to the AI buttons.
 - HTTP timeout 280 seconds. ProofNest's routes allow 300.
 - ProofNest sends at most 8 photos per check, each resized to 1568px, plus an optional screenshot of the owner's message.

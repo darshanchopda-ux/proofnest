@@ -2,7 +2,7 @@ import { asc, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { flats, photos } from "@/db/schema";
-import { agreementSummary, flatFacts, logRun, overRunLimit, photoMeta } from "@/lib/ai";
+import { agreementSummary, aiOptions, flatFacts, logRun, overRunLimit, photoMeta } from "@/lib/ai";
 import { getCurrentUser } from "@/lib/dal";
 import { getOwnedFlat, listCharges } from "@/lib/flats";
 import { fmtDate } from "@/lib/format";
@@ -30,6 +30,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
 
   const started = Date.now();
   const reply = await callWorkflow<LetterReply>("proofnest-letter", {
+    ...aiOptions(),
     flat: flatFacts(flat),
     today: fmtDate(new Date()),
     charges: chargeList,

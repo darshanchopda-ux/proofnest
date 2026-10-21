@@ -2,10 +2,14 @@
 // Input: the Webhook node's item, whose body is the payload sent by /api/flats/[id]/check.
 // Output: { model, request } — the model id and the JSON body for Gemini's generateContent.
 
-// Free-tier model. If you hit its daily limit, "gemini-3.5-flash-lite" is a lighter free alternative.
-const MODEL = "gemini-3.8-flash";
-
 const p = $input.first().json.body || {};
+
+// ProofNest can override these per request (AI_MODEL / AI_THINKING_LEVEL on Vercel) without editing this node.
+// Free-tier model; "gemini-3.5-flash-lite" is a lighter free alternative if you hit its daily limit.
+const MODEL = p.model || "gemini-3.8-flash";
+// generationConfig.thinkingConfig.thinkingLevel: MINIMAL, LOW, MEDIUM or HIGH. Thinking counts toward
+// maxOutputTokens; LOW keeps a check short. "default" leaves Gemini's own level, which took 142 s in testing.
+const THINKING = String(p.thinkingLevel || "low").toUpperCase();
 const flat = p.flat || {};
 const rupees = (v) => (v == null || v === "" ? "[not given]" : "₹" + Number(v).toLocaleString("en-IN"));
 
@@ -99,7 +103,13 @@ return [
       model: MODEL,
       request: {
         contents: [{ role: "user", parts }],
-        generationConfig: { responseMimeType: "application/json", responseSchema, maxOutputTokens: 16384, temperature: 0.2 },
+        generationConfig: {
+          responseMimeType: "application/json",
+          responseSchema,
+          maxOutputTokens: 32768,
+          temperature: 0.2,
+          ...(THINKING === "DEFAULT" ? {} : { thinkingConfig: { thinkingLevel: THINKING } }),
+        },
       },
     },
   },

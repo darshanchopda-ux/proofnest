@@ -38,6 +38,10 @@ const [built] = runNode("check-build.js", { body: payload });
 assert.equal(built.json.model, "gemini-3.8-flash");
 const req = built.json.request;
 assert.equal(req.generationConfig.responseMimeType, "application/json");
+assert.deepEqual(req.generationConfig.thinkingConfig, { thinkingLevel: "LOW" });
+const [overridden] = runNode("check-build.js", { body: { ...payload, model: "gemini-3.5-flash-lite", thinkingLevel: "default" } });
+assert.equal(overridden.json.model, "gemini-3.5-flash-lite");
+assert.equal(overridden.json.request.generationConfig.thinkingConfig, undefined);
 assert.equal(req.generationConfig.responseSchema.properties.charges.items.properties.verdict.enum.length, 5);
 const parts = req.contents[0].parts;
 assert.deepEqual(parts.map((p) => Object.keys(p)[0]), ["text", "inline_data", "text"]);
@@ -63,6 +67,7 @@ console.log("check-parse ok");
 // letter-build and letter-parse
 const [letterReq] = runNode("letter-build.js", { body: { ...payload, today: "21 Oct 2026", charges: [{ item: "Painting", amount: 18000, decision: "wear_and_tear", photoNs: [1], reason: "" }], citedPhotos: payload.photos } });
 assert.equal(letterReq.json.model, "gemini-3.8-flash");
+assert.deepEqual(letterReq.json.request.generationConfig.thinkingConfig, { thinkingLevel: "LOW" });
 assert.match(letterReq.json.request.contents[0].parts[0].text, /"photos":\["P1"\]/);
 const letter = runNode("letter-parse.js", gemini("Dear Mr. Sharma,"))[0].json;
 assert.equal(letter.ok, true);

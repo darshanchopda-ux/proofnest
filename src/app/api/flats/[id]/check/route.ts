@@ -2,7 +2,7 @@ import { and, asc, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { charges, flats, photos } from "@/db/schema";
-import { agreementSummary, flatFacts, imageFileForAI, logRun, overRunLimit, photoForAI, photoMeta, pickPhotos } from "@/lib/ai";
+import { agreementSummary, aiOptions, flatFacts, imageFileForAI, logRun, overRunLimit, photoForAI, photoMeta, pickPhotos } from "@/lib/ai";
 import { getCurrentUser } from "@/lib/dal";
 import { getOwnedFlat, listCharges } from "@/lib/flats";
 import { callWorkflow } from "@/lib/n8n";
@@ -50,6 +50,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const started = Date.now();
   const reply = await callWorkflow<CheckReply>("proofnest-check", {
+    ...aiOptions(),
     flat: flatFacts(flat),
     deductions,
     evidence: flat.evidenceNotes,

@@ -12,6 +12,14 @@ import type { WorkflowUsage } from "@/lib/n8n";
 export const MAX_IMAGES = 8;
 const RUNS_PER_HOUR = 15;
 
+/** Optional model and thinking overrides passed to the n8n workflows (unset: the workflows' own defaults). */
+export function aiOptions(): { model?: string; thinkingLevel?: string } {
+  const options: { model?: string; thinkingLevel?: string } = {};
+  if (process.env.AI_MODEL) options.model = process.env.AI_MODEL;
+  if (process.env.AI_THINKING_LEVEL) options.thinkingLevel = process.env.AI_THINKING_LEVEL;
+  return options;
+}
+
 export function flatFacts(flat: Flat) {
   return {
     address: flat.address,

@@ -1,6 +1,7 @@
 // Shared by both "Read Gemini reply" Code nodes (build.mjs prepends it).
 // Turns Gemini's generateContent response into { text } or a ProofNest failure.
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- called by the parse code that follows it
 function readGemini(res) {
   let body = res.body || {};
   if (typeof body === "string") {

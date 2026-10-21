@@ -2,9 +2,11 @@
 // Input: the Webhook node's item, whose body is the payload sent by /api/flats/[id]/letter.
 // Output: { model, request } — the model id and the JSON body for Gemini's generateContent.
 
-const MODEL = "gemini-3.8-flash";
-
 const p = $input.first().json.body || {};
+
+// ProofNest can override these per request (AI_MODEL / AI_THINKING_LEVEL on Vercel) without editing this node.
+const MODEL = p.model || "gemini-3.8-flash";
+const THINKING = String(p.thinkingLevel || "low").toUpperCase();
 const flat = p.flat || {};
 const rupees = (v) => (v == null || v === "" ? "[not given]" : "₹" + Number(v).toLocaleString("en-IN"));
 
@@ -64,7 +66,11 @@ return [
       model: MODEL,
       request: {
         contents: [{ role: "user", parts: [{ text: prompt }] }],
-        generationConfig: { maxOutputTokens: 8192, temperature: 0.4 },
+        generationConfig: {
+          maxOutputTokens: 16384,
+          temperature: 0.4,
+          ...(THINKING === "DEFAULT" ? {} : { thinkingConfig: { thinkingLevel: THINKING } }),
+        },
       },
     },
   },
