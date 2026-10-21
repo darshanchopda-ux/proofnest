@@ -46,7 +46,7 @@ Then re-import the changed workflow in n8n, or paste the new code into its Code 
 - `POST https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent`, key in the `x-goog-api-key` header.
 - The check asks for JSON (`generationConfig.responseMimeType` `application/json` with a `responseSchema`) so the reply parses; the reader also strips a code fence if one appears.
 - Thinking is set to `LOW` (`generationConfig.thinkingConfig.thinkingLevel`). Gemini's own default took 142 seconds and about 16,000 output tokens for a three-charge check; thinking tokens count toward `maxOutputTokens` (32,768 for the check, 16,384 for the letter).
-- Free tier: Google applies per-minute and per-day limits (see your limits in AI Studio). A quota error comes back to ProofNest as `{ ok: false, code: "busy" }` with a "try again" message.
+- Free tier: Google applies per-minute and per-day limits (see your limits in AI Studio). A quota or overload error comes back to ProofNest as `{ ok: false, code: "busy" }`. ProofNest retries once after 5 seconds if at least 90 seconds of its time budget are left, and otherwise shows a "try again" message.
 - To change the model or thinking level without editing n8n, set `AI_MODEL` (for example `gemini-3.5-flash-lite` if the daily limit is too low) or `AI_THINKING_LEVEL` (`minimal`, `low`, `medium`, `high`, or `default` for Gemini's own) in ProofNest's Vercel settings and redeploy. ProofNest sends them with each request.
 - Privacy: on the free tier, Google may use what you send, including photos, to improve its products. The paid tier doesn't. ProofNest says this next to the AI buttons.
 - HTTP timeout 280 seconds. ProofNest's routes allow 300.
