@@ -63,7 +63,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!reply.ok) return fail(reply.code === "not_configured" ? 503 : reply.code === "busy" ? 429 : 502, reply.error, reply.code);
 
   const ag = normalizeAgreement(reply.agreement);
-  if (!ag.isAgreement) return fail(422, "That doesn't look like a rent agreement. Upload all of its pages, or paste its text.", "not_agreement");
+  const found = ag.clauses.length > 0 || Object.values(ag.facts).some((v) => v !== "" && v != null);
+  if (!ag.isAgreement || !found) return fail(422, "That doesn't look like a rent agreement. Upload all of its pages, or paste its text.", "not_agreement");
 
   const values = { files, facts: ag.facts, clauses: ag.clauses, flags: ag.flags, text, pages: ag.pageCount || files.length, readAt: new Date(), dismissed: false };
   const [row] = await db.insert(agreements).values({ flatId: flat.id, ...values }).onConflictDoUpdate({ target: agreements.flatId, set: values }).returning();
