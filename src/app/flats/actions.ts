@@ -4,10 +4,10 @@ import { del } from "@vercel/blob";
 import { and, eq, sql } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
-import { agreements, flats, photos } from "@/db/schema";
+import { agreements, charges, flats, photos } from "@/db/schema";
 import { isUuid, requireUser } from "@/lib/dal";
-import { EXAMPLE_CONTENT_TYPE, getOwnedFlat, toPhotoDTO } from "@/lib/flats";
-import type { Condition, FlatPatch, NewFlatInput, PhotoDTO } from "@/lib/types";
+import { EXAMPLE_CONTENT_TYPE, getOwnedFlat, toChargeDTO, toPhotoDTO } from "@/lib/flats";
+import type { ChargeDTO, Condition, Decision, FlatPatch, NewFlatInput, PhotoDTO } from "@/lib/types";
 
 export type Result<T = null> = { ok: true; data: T } | { ok: false; error: string };
 
@@ -239,6 +239,44 @@ export async function deletePhoto(flatId: string, photoId: string): Promise<Resu
   if (!flat || !isUuid(photoId)) return NOT_FOUND;
   const [photo] = await db.delete(photos).where(and(eq(photos.id, photoId), eq(photos.flatId, flat.id))).returning();
   if (photo && photo.contentType !== EXAMPLE_CONTENT_TYPE) await removeBlobs([photo.blobPathname]);
+  return { ok: true, data: null };
+}
+
+const DECISION_VALUES: Decision[] = ["already_there", "wear_and_tear", "no_receipt", "check", "likely_valid"];
+
+export async function setChargeDecision(flatId: string, chargeId: string, decision: Decision): Promise<Result> {
+  const user = await requireUser();
+  const flat = await getOwnedFlat(user.id, flatId);
+  if (!flat || !isUuid(chargeId)) return NOT_FOUND;
+  if (!DECISION_VALUES.includes(decision)) return { ok: false, error: "Pick one of the listed decisions." };
+  await db.update(charges).set({ decision }).where(and(eq(charges.id, chargeId), eq(charges.flatId, flat.id)));
+  return { ok: true, data: null };
+}
+
+export async function addCharge(flatId: string, item: string, amount: number): Promise<Result<ChargeDTO>> {
+  const user = await requireUser();
+  const flat = await getOwnedFlat(user.id, flatId);
+  if (!flat) return NOT_FOUND;
+  const name = clean(item, 160);
+  if (!name) return { ok: false, error: "Describe the charge, for example Sofa cleaning." };
+  const value = Number.isFinite(amount) && amount >= 0 && amount < 1e10 ? amount : 0;
+  const [{ position }] = await db
+    .select({ position: sql<number>`coalesce(max(${charges.position}), -1)::int + 1` })
+    .from(charges)
+    .where(eq(charges.flatId, flat.id));
+  const [row] = await db
+    .insert(charges)
+    .values({ flatId: flat.id, position, item: name, amount: value.toFixed(2), decision: "check", source: "manual" })
+    .returning();
+  await db.update(flats).set({ stage: "moveout", updatedAt: new Date() }).where(eq(flats.id, flat.id));
+  return { ok: true, data: toChargeDTO(row) };
+}
+
+export async function deleteCharge(flatId: string, chargeId: string): Promise<Result> {
+  const user = await requireUser();
+  const flat = await getOwnedFlat(user.id, flatId);
+  if (!flat || !isUuid(chargeId)) return NOT_FOUND;
+  await db.delete(charges).where(and(eq(charges.id, chargeId), eq(charges.flatId, flat.id)));
   return { ok: true, data: null };
 }
 

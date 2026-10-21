@@ -1,6 +1,6 @@
 import type { IconName } from "@/components/Icon";
-import { fmtDate, listWords, plural } from "./format";
-import { CONDITIONS, type FlatDTO, type Step } from "./types";
+import { fmtDate, listWords, money, plural } from "./format";
+import { CONDITIONS, DISPUTED, type ChargeDTO, type FlatDTO, type Step } from "./types";
 
 export type RoomStat = { name: string; count: number };
 
@@ -17,7 +17,7 @@ export function coverage(flat: FlatDTO) {
 }
 
 export function isMoveOut(flat: FlatDTO): boolean {
-  return flat.stage === "moveout" || !!flat.keysHandedOver || !!flat.deductionsText.trim() || flat.chargeCount > 0;
+  return flat.stage === "moveout" || !!flat.keysHandedOver || !!flat.deductionsText.trim() || flat.charges.length > 0;
 }
 
 export type StepState = "todo" | "partial" | "done";
@@ -26,7 +26,7 @@ export function stepStates(flat: FlatDTO): Record<Step, StepState> {
   const cov = coverage(flat);
   return {
     record: cov.total && cov.covered === cov.total ? "done" : flat.photos.length ? "partial" : "todo",
-    check: flat.chargeCount ? "done" : "todo",
+    check: flat.charges.length ? "done" : "todo",
     letter: flat.letter.trim() ? "done" : "todo",
   };
 }
@@ -34,7 +34,9 @@ export function stepStates(flat: FlatDTO): Record<Step, StepState> {
 export type NextButton =
   | { kind: "upload"; label: string; room: string }
   | { kind: "step"; label: string; step: Step; icon?: IconName }
-  | { kind: "copy-summary"; label: string };
+  | { kind: "copy-summary"; label: string }
+  | { kind: "run-check"; label: string }
+  | { kind: "copy-letter"; label: string };
 
 export type NextAction = { key: string; icon: IconName; title: string; text: string; primary?: NextButton; secondary?: NextButton };
 
@@ -69,30 +71,60 @@ export function nextAction(flat: FlatDTO): NextAction {
       primary: { kind: "copy-summary", label: "Copy WhatsApp message" },
     };
   }
-  if (!flat.chargeCount) {
+  if (!flat.charges.length) {
     if (flat.deductionsText.trim()) {
       return {
         key: "run",
         icon: "sparkle",
-        title: "Your owner's deductions are saved",
-        text: "Claude's charge-by-charge check is the next update to ProofNest. Your list and photos are ready for it.",
+        title: "Check the owner's deductions",
+        text: "Claude compares every charge with your move-in photos and notes, and tells you which ones you can dispute.",
+        primary: { kind: "run-check", label: "Check with Claude" },
       };
     }
     return {
       key: "paste",
       icon: "chat",
       title: "Paste what the owner wants to deduct",
-      text: "Copy the owner's WhatsApp message or email into step 2 so it's saved with your move-in photos.",
+      text: "Copy the owner's WhatsApp message or email into step 2, or add a screenshot of it.",
       primary: { kind: "step", label: "Go to step 2", step: "check", icon: "arrow" },
     };
   }
+  if (!flat.letter.trim()) {
+    const ask = refundAsk(flat);
+    return {
+      key: "letter",
+      icon: "doc",
+      title: ask != null ? `Ask for ${money(ask)} back` : "Write your refund letter",
+      text: "Your decisions are set. ProofNest turns them into a polite, firm letter that cites your photos.",
+      primary: { kind: "step", label: "Write the letter", step: "letter", icon: "arrow" },
+    };
+  }
   return {
-    key: "letter",
-    icon: "doc",
-    title: "Write your refund letter",
-    text: "Your decisions are set. The refund letter builds on them.",
-    primary: { kind: "step", label: "Go to step 3", step: "letter", icon: "arrow" },
+    key: "send",
+    icon: "chat",
+    title: "Send the letter to your owner",
+    text: "Paste it into WhatsApp or email, and attach your move-in photos so every one is on record.",
+    primary: { kind: "copy-letter", label: "Copy letter" },
   };
+}
+
+export type Totals = { all: number; dispute: number; check: number; accept: number };
+
+export function totals(charges: ChargeDTO[]): Totals {
+  const t: Totals = { all: 0, dispute: 0, check: 0, accept: 0 };
+  for (const c of charges) {
+    t.all += c.amount;
+    if (DISPUTED.includes(c.decision)) t.dispute += c.amount;
+    else if (c.decision === "check") t.check += c.amount;
+    else t.accept += c.amount;
+  }
+  return t;
+}
+
+/** Deposit minus only the charges the tenant accepts, or null when the deposit isn't known. */
+export function refundAsk(flat: FlatDTO): number | null {
+  const deposit = Number(flat.deposit) || 0;
+  return deposit ? Math.max(0, deposit - totals(flat.charges).accept) : null;
 }
 
 /** A message the tenant can paste into WhatsApp or email on the day they move in. */

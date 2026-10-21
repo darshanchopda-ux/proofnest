@@ -1,0 +1,150 @@
+{
+  "name": "ProofNest · refund letter",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "proofnest-letter",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "name": "ProofNest webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "proofnest-letter"
+    },
+    {
+      "parameters": {
+        "jsCode": "// n8n Code node \"Build Claude request\" in the proofnest-letter workflow.\n// Input: the Webhook node's item, whose body is the payload sent by /api/flats/[id]/letter.\n// Output: { request } — the JSON body for POST https://api.anthropic.com/v1/messages.\n\nconst p = $input.first().json.body || {};\nconst flat = p.flat || {};\nconst rupees = (v) => (v == null || v === \"\" ? \"[not given]\" : \"₹\" + Number(v).toLocaleString(\"en-IN\"));\n\nconst facts = [\n  \"Country: India. Amounts are in Indian rupees.\",\n  \"Flat: \" + (flat.address || \"[not given]\"),\n  \"Owner or landlord: \" + (flat.ownerName || \"[not given]\"),\n  \"Tenant: \" + (flat.tenantName || \"[not given]\"),\n  \"Move-in date: \" + (flat.moveIn || \"[not given]\") + \"; keys handed over: \" + (flat.keysHandedOver || \"[not given]\"),\n  \"Monthly rent: \" + rupees(flat.monthlyRent) + \"; security deposit: \" + rupees(flat.deposit),\n  \"Today's date: \" + (p.today || \"[today]\"),\n].join(\"\\n\");\n\nconst charges = (p.charges || []).map((c) => ({\n  item: c.item,\n  amount: c.amount,\n  decision: c.decision,\n  photos: (c.photoNs || []).map((n) => \"P\" + n),\n  reason: c.reason || \"\",\n}));\n\nconst cited = (p.citedPhotos || []).map((ph) => `P${ph.n} (${ph.room}, taken ${ph.takenAt || \"at move-in\"}): ${ph.note || \"no note\"}`);\n\nconst prompt = [\n  \"Write a letter in Indian English from a tenant to their flat's owner asking for the refund of their security deposit and disputing some deductions. It will be sent on WhatsApp or email, so keep it polite, firm and easy to read on a phone.\",\n  \"\",\n  \"FACTS\",\n  facts,\n  \"\",\n  \"CHARGES WITH THE TENANT'S DECISION (JSON)\",\n  JSON.stringify(charges),\n  \"\",\n  \"MOVE-IN PHOTOS CITED\",\n  cited.length ? cited.join(\"\\n\") : \"(none)\",\n  \"\",\n  \"OTHER EVIDENCE\",\n  String(p.evidence || \"(none)\").slice(0, 4000),\n  \"\",\n  \"RENT AGREEMENT\",\n  String(p.agreement || \"(not uploaded)\").slice(0, 4000),\n  \"\",\n  \"RULES\",\n  \"- Format: sender details, date, 'To,' with the owner's name and the flat address, a 'Subject:' line, 'Dear <owner>,' and 'Regards,' with the tenant's name.\",\n  \"- Dispute every charge whose decision is already_there, wear_and_tear or no_receipt, in one or two sentences each, citing the photo numbers and evidence given.\",\n  \"- For decision check, ask the owner to explain the charge and share the bill or supporting documents.\",\n  \"- Accept likely_valid charges together in one sentence.\",\n  \"- Say the move-in photos with dates are attached.\",\n  \"- Where a rent agreement clause above supports the tenant, mention it by clause number.\",\n  \"- Ask the owner to refund the deposit minus only the accepted charges to the tenant's bank account or UPI ID within 7 days, and to share bills before deducting anything else. Write amounts as ₹ with Indian digit grouping, like ₹1,50,000.\",\n  \"- Use [square brackets] for anything not given, like [Your UPI ID].\",\n  \"- Do not cite laws, acts, penalties or legal deadlines, and do not threaten a legal notice or court. Plain text only, no Markdown, under 350 words.\",\n].join(\"\\n\");\n\nreturn [\n  {\n    json: {\n      request: {\n        model: \"claude-opus-5-5\",\n        max_tokens: 16000,\n        fallbacks: \"default\",\n        output_config: { effort: \"medium\" },\n        messages: [{ role: \"user\", content: prompt }],\n      },\n    },\n  },\n];\n"
+      },
+      "name": "Build Claude request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "anthropic-beta",
+              "value": "server-side-fallback-2026-07-01"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.request) }}",
+        "options": {
+          "timeout": 280000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "name": "Call Claude API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        480,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// n8n Code node \"Read Claude reply\" in the proofnest-letter workflow.\n// Input: the HTTP Request node's full response ({ statusCode, body, headers }), with \"Never error\" on.\n// Output: what the Respond to Webhook node returns to ProofNest.\n\nconst res = $input.first().json;\nlet body = res.body || {};\nif (typeof body === \"string\") {\n  try {\n    body = JSON.parse(body);\n  } catch {\n    body = {};\n  }\n}\n\nfunction fail(error, code) {\n  return [{ json: { ok: false, code, error, model: body.model || \"\", usage: body.usage || null } }];\n}\n\nif (res.statusCode && res.statusCode !== 200) {\n  const message = (body.error && body.error.message) || \"The Claude API returned status \" + res.statusCode + \".\";\n  return fail(message, res.statusCode === 429 || res.statusCode === 529 ? \"busy\" : \"api_error\");\n}\nif (body.stop_reason === \"refusal\") return fail(\"Claude declined to write this letter. Use Build from template instead.\", \"refused\");\n\nconst letter = (body.content || []).filter((b) => b.type === \"text\").map((b) => b.text).join(\"\").trim();\nif (!letter) return fail(\"No letter came back. Try again.\", \"empty\");\n\nreturn [{ json: { ok: true, letter, truncated: body.stop_reason === \"max_tokens\", model: body.model || \"\", usage: body.usage || null } }];\n"
+      },
+      "name": "Read Claude reply",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "name": "Respond to ProofNest",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        960,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "ProofNest webhook": {
+      "main": [
+        [
+          {
+            "node": "Build Claude request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Claude request": {
+      "main": [
+        [
+          {
+            "node": "Call Claude API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Claude API": {
+      "main": [
+        [
+          {
+            "node": "Read Claude reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Claude reply": {
+      "main": [
+        [
+          {
+            "node": "Respond to ProofNest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}

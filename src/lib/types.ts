@@ -19,6 +19,38 @@ export type PhotoDTO = {
   addedAt: string;
 };
 
+export type Decision = "already_there" | "wear_and_tear" | "no_receipt" | "check" | "likely_valid";
+
+export const DECISIONS: Record<Decision, string> = {
+  already_there: "Dispute: already there at move-in",
+  wear_and_tear: "Dispute: normal wear and tear",
+  no_receipt: "Dispute: no bill or receipt shared",
+  check: "Ask the owner to explain",
+  likely_valid: "Accept this charge",
+};
+
+export const AI_LABEL: Record<Decision, string> = {
+  already_there: "Already there",
+  wear_and_tear: "Wear and tear",
+  no_receipt: "No bill",
+  check: "Check this",
+  likely_valid: "Likely valid",
+};
+
+export const DISPUTED: Decision[] = ["already_there", "wear_and_tear", "no_receipt"];
+
+export type ChargeDTO = {
+  id: string;
+  item: string;
+  amount: number;
+  aiVerdict: Decision | null;
+  decision: Decision;
+  photoNs: number[];
+  reason: string;
+  confidence: number | null;
+  source: "ai" | "manual";
+};
+
 export type FlatDTO = {
   id: string;
   stage: Stage;
@@ -37,7 +69,8 @@ export type FlatDTO = {
   letter: string;
   photos: PhotoDTO[];
   hasAgreement: boolean;
-  chargeCount: number;
+  charges: ChargeDTO[];
+  analyzedAt: string | null;
 };
 
 /** Fields the details panel may edit. */

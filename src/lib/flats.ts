@@ -1,8 +1,8 @@
 import "server-only";
-import { and, asc, count, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { agreements, charges, flats, photos, type Flat, type Photo } from "@/db/schema";
-import type { FlatDTO, PhotoDTO } from "@/lib/types";
+import { agreements, charges, flats, photos, type Charge, type Flat, type Photo } from "@/db/schema";
+import type { ChargeDTO, FlatDTO, PhotoDTO } from "@/lib/types";
 import { isUuid } from "@/lib/dal";
 
 export const EXAMPLE_CONTENT_TYPE = "example";
@@ -39,13 +39,32 @@ export function toPhotoDTO(p: Photo): PhotoDTO {
   };
 }
 
+export function toChargeDTO(c: Charge): ChargeDTO {
+  return {
+    id: c.id,
+    item: c.item,
+    amount: Number(c.amount) || 0,
+    aiVerdict: c.aiVerdict,
+    decision: c.decision,
+    photoNs: c.photoNs,
+    reason: c.reason,
+    confidence: c.confidence,
+    source: c.source === "manual" ? "manual" : "ai",
+  };
+}
+
+export async function listCharges(flatId: string): Promise<ChargeDTO[]> {
+  const rows = await db.select().from(charges).where(eq(charges.flatId, flatId)).orderBy(asc(charges.position), asc(charges.createdAt));
+  return rows.map(toChargeDTO);
+}
+
 export async function getFlatDTO(userId: string, flatId: string): Promise<FlatDTO | null> {
   const flat = await getOwnedFlat(userId, flatId);
   if (!flat) return null;
-  const [photoRows, agreementRows, [chargeCount]] = await Promise.all([
+  const [photoRows, agreementRows, chargeList] = await Promise.all([
     db.select().from(photos).where(eq(photos.flatId, flat.id)).orderBy(asc(photos.n)),
     db.select({ flatId: agreements.flatId }).from(agreements).where(eq(agreements.flatId, flat.id)).limit(1),
-    db.select({ value: count() }).from(charges).where(eq(charges.flatId, flat.id)),
+    listCharges(flat.id),
   ]);
   return {
     id: flat.id,
@@ -65,6 +84,7 @@ export async function getFlatDTO(userId: string, flatId: string): Promise<FlatDT
     letter: flat.letter,
     photos: photoRows.map(toPhotoDTO),
     hasAgreement: agreementRows.length > 0,
-    chargeCount: chargeCount?.value ?? 0,
+    charges: chargeList,
+    analyzedAt: flat.analyzedAt ? flat.analyzedAt.toISOString() : null,
   };
 }

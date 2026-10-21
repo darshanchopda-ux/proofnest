@@ -12,7 +12,7 @@ Live: https://proofnest-three.vercel.app (Vercel project `proofnest` in the VBC1
 | Database | Neon Postgres (project `proofnest`, Singapore) via Drizzle ORM |
 | Sign-in | Neon Auth (Managed Better Auth), email and password |
 | Files | Vercel Blob, **private** store. Photos are only served through `/api/photos/[id]` after an ownership check |
-| AI (Phase 2) | n8n workflows calling the Claude API |
+| AI | n8n workflows calling the Claude API (`claude-opus-5-5`). Setup: [n8n/README.md](n8n/README.md) |
 
 ## Run it locally
 
@@ -29,6 +29,8 @@ npm run dev
 | `NEON_AUTH_BASE_URL` | Neon console, Auth settings |
 | `NEON_AUTH_COOKIE_SECRET` | `openssl rand -base64 32` |
 | `BLOB_READ_WRITE_TOKEN` | Vercel project, Storage, the private Blob store |
+| `N8N_WEBHOOK_BASE` | n8n webhook Production URL base, e.g. `https://yourname.app.n8n.cloud/webhook` |
+| `N8N_WEBHOOK_SECRET` | `openssl rand -hex 24`; the same value goes in n8n's *ProofNest shared secret* credential |
 
 ## Database
 
@@ -50,7 +52,9 @@ npm run db:migrate
 - `src/app/api/upload`: issues Blob upload tokens limited to the flat's own folder
 - `src/app/api/photos/[id]`: streams a private photo to its owner
 - `src/lib/photo-client.ts`: EXIF capture time and SHA-256 fingerprint, computed in the browser
+- `src/app/api/flats/[id]/check` and `/letter`: call the n8n workflows; photos are resized to 1568px with sharp first
+- `n8n/`: the two workflows, their Code node sources and tests
 
 ## Status
 
-Phase 1 (foundation) is in: sign-in, flats, rooms, photo upload with capture time and fingerprint, details, WhatsApp summary. The deduction check, refund letter and rent agreement reading come next.
+Phase 1 and 2 are in: sign-in, flats, rooms, photo upload with capture time and fingerprint, details, WhatsApp summary, Claude's deduction check with per-charge decisions, and the refund letter (Claude or template). Rent agreement reading comes next.

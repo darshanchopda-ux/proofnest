@@ -5,11 +5,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Icon } from "@/components/Icon";
 import { useToast } from "@/components/Toast";
 import { recordPhoto, updateFlat } from "@/app/flats/actions";
-import { coverage, isMoveOut, nextAction, stepStates, summaryText, type NextButton } from "@/lib/guidance";
+import { coverage, isMoveOut, nextAction, stepStates, summaryText, totals, type NextButton } from "@/lib/guidance";
 import { depositMonths, fmtDate, money, plural, refundInfo } from "@/lib/format";
 import { exifDate, safeFileName, sha256Hex, toJpeg, UPLOADABLE } from "@/lib/photo-client";
-import { CONDITIONS, type FlatDTO, type FlatPatch, type PhotoDTO, type Step } from "@/lib/types";
+import { CONDITIONS, type ChargeDTO, type FlatDTO, type FlatPatch, type PhotoDTO, type Step } from "@/lib/types";
+import { CheckStep, type CheckState } from "./CheckStep";
 import { DetailsDrawer } from "./DetailsDrawer";
+import { LetterStep } from "./LetterStep";
 import { RecordStep } from "./RecordStep";
 
 const STEPS: { id: Step; n: number; when: string; title: string }[] = [
@@ -26,6 +28,9 @@ export function FlatWorkspace({ initialFlat, initialStep }: { initialFlat: FlatD
   const [zoom, setZoom] = useState<PhotoDTO | null>(null);
   const [pending, setPending] = useState<Record<string, number>>({});
   const [freshIds, setFreshIds] = useState<Set<string>>(new Set());
+  const [check, setCheck] = useState<CheckState>({ running: false, status: "", error: false, replay: 0 });
+  const [screenshot, setScreenshot] = useState<File | null>(null);
+  const checkCtl = useRef<AbortController | null>(null);
   const toast = useToast();
 
   const goStep = useCallback((next: Step) => {
@@ -115,6 +120,61 @@ export function FlatWorkspace({ initialFlat, initialStep }: { initialFlat: FlatD
     }
   }, [flat, toast]);
 
+  /** Sends the owner's deductions (and an optional screenshot) to Claude through the check route. */
+  const runCheck = useCallback(async () => {
+    if (check.running) return;
+    if (!flat.deductionsText.trim() && !screenshot) {
+      toast("Paste the owner's deductions first, or add a screenshot of them.", "bad");
+      if (step !== "check") goStep("check");
+      return;
+    }
+    if (step !== "check") goStep("check");
+    checkCtl.current = new AbortController();
+    setCheck((c) => ({ ...c, running: true, status: "", error: false }));
+    try {
+      const form = new FormData();
+      form.set("deductions", flat.deductionsText);
+      if (screenshot) {
+        const small = /^image\/(jpeg|png|webp)$/.test(screenshot.type) && screenshot.size < 3_000_000 ? screenshot : await toJpeg(screenshot, 2000, 0.85);
+        form.set("screenshot", small, "screenshot.jpg");
+      }
+      const res = await fetch(`/api/flats/${flat.id}/check`, { method: "POST", body: form, signal: checkCtl.current.signal });
+      const json = (await res.json().catch(() => null)) as { ok: boolean; charges?: ChargeDTO[]; analyzedAt?: string; error?: string } | null;
+      if (!json?.ok || !json.charges) {
+        setCheck((c) => ({ ...c, running: false, error: true, status: json?.error || "Something went wrong. Try again." }));
+        return;
+      }
+      const charges = json.charges;
+      const dispute = totals(charges).dispute;
+      setFlat((f) => ({ ...f, stage: "moveout", charges, analyzedAt: json.analyzedAt ?? new Date().toISOString() }));
+      setCheck((c) => ({
+        running: false,
+        error: false,
+        replay: c.replay + 1,
+        status: dispute ? `Done. You can dispute ${money(dispute)}. Review each card and set your decision.` : "Done. Review each card and set your decision.",
+      }));
+    } catch (e) {
+      const stopped = e instanceof DOMException && e.name === "AbortError";
+      setCheck((c) => ({ ...c, running: false, error: !stopped, status: stopped ? "Stopped." : "Couldn't reach ProofNest. Check your connection." }));
+    } finally {
+      checkCtl.current = null;
+    }
+  }, [check.running, flat.deductionsText, flat.id, goStep, screenshot, step, toast]);
+
+  const copyLetter = useCallback(async () => {
+    if (!flat.letter.trim()) {
+      toast("Write or build the letter first.", "bad");
+      goStep("letter");
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(flat.letter);
+      toast("Letter copied. Paste it into WhatsApp or email.");
+    } catch {
+      toast("Copy didn't work here. Select the text and copy it yourself.", "bad");
+    }
+  }, [flat.letter, goStep, toast]);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -130,7 +190,7 @@ export function FlatWorkspace({ initialFlat, initialStep }: { initialFlat: FlatD
     <div className="wrap case">
       <CaseHead flat={flat} onEdit={() => setDrawerOpen(true)} />
       <Stepper flat={flat} step={step} onStep={goStep} />
-      <NextCard flat={flat} step={step} onStep={goStep} onFiles={addPhotos} onCopy={copySummary} />
+      <NextCard flat={flat} step={step} onStep={goStep} onFiles={addPhotos} onCopy={copySummary} onRunCheck={runCheck} onCopyLetter={copyLetter} running={check.running} />
       <section className="panel enter" key={animKey} role="region" aria-label={STEPS.find((s) => s.id === step)?.title}>
         {step === "record" && (
           <RecordStep
@@ -144,8 +204,21 @@ export function FlatWorkspace({ initialFlat, initialStep }: { initialFlat: FlatD
             patchFlat={patchFlat}
           />
         )}
-        {step === "check" && <CheckPlaceholder flat={flat} patchFlat={patchFlat} />}
-        {step === "letter" && <LetterPlaceholder onStep={goStep} />}
+        {step === "check" && (
+          <CheckStep
+            flat={flat}
+            setFlat={setFlat}
+            patchFlat={patchFlat}
+            check={check}
+            screenshot={screenshot}
+            setScreenshot={setScreenshot}
+            onRun={runCheck}
+            onStop={() => checkCtl.current?.abort()}
+            onZoom={setZoom}
+            onGoRecord={() => goStep("record")}
+          />
+        )}
+        {step === "letter" && <LetterStep flat={flat} patchFlat={patchFlat} onStep={goStep} onCopy={copyLetter} />}
       </section>
       {drawerOpen && <DetailsDrawer flat={flat} patchFlat={patchFlat} onClose={() => setDrawerOpen(false)} />}
       {zoom && <Lightbox photo={zoom} onClose={() => setZoom(null)} />}
@@ -218,7 +291,7 @@ function Stepper({ flat, step, onStep }: { flat: FlatDTO; step: Step; onStep: (s
   }, [target]);
   const subs: Record<Step, string> = {
     record: `${plural(flat.photos.length, "photo")} · ${cov.covered}/${cov.total} rooms`,
-    check: flat.chargeCount ? `${plural(flat.chargeCount, "charge")} checked` : flat.deductionsText.trim() ? "Owner's list saved" : "Owner's list",
+    check: flat.charges.length ? `${plural(flat.charges.length, "charge")} checked` : flat.deductionsText.trim() ? "Owner's list saved" : "Owner's list",
     letter: states.letter === "done" ? "Draft saved" : "Not started",
   };
   return (
@@ -250,12 +323,18 @@ function NextCard({
   onStep,
   onFiles,
   onCopy,
+  onRunCheck,
+  onCopyLetter,
+  running,
 }: {
   flat: FlatDTO;
   step: Step;
   onStep: (s: Step) => void;
   onFiles: (room: string, files: FileList) => void;
   onCopy: () => void;
+  onRunCheck: () => void;
+  onCopyLetter: () => void;
+  running: boolean;
 }) {
   const action = nextAction(flat);
   const button = (b: NextButton | undefined, cls: string) => {
@@ -265,6 +344,20 @@ function NextCard({
       return (
         <button className={`btn small ${cls}`} type="button" onClick={() => onStep(b.step)}>
           {b.label}{b.icon && <Icon name={b.icon} small />}
+        </button>
+      );
+    }
+    if (b.kind === "run-check") {
+      return (
+        <button className={`btn small ${cls}`} type="button" onClick={onRunCheck} disabled={running}>
+          <Icon name="sparkle" small />{running ? "Checking…" : b.label}
+        </button>
+      );
+    }
+    if (b.kind === "copy-letter") {
+      return (
+        <button className={`btn small ${cls}`} type="button" onClick={onCopyLetter}>
+          <Icon name="copy" small />{b.label}
         </button>
       );
     }
@@ -304,51 +397,6 @@ function NextCard({
         {button(action.primary, "accent")}
       </div>
     </section>
-  );
-}
-
-function CheckPlaceholder({ flat, patchFlat }: { flat: FlatDTO; patchFlat: (p: FlatPatch, delay?: number) => void }) {
-  return (
-    <>
-      <div className="panel-head">
-        <div>
-          <div className="ttl"><h2>Check deductions</h2><span className="when">At move-out</span></div>
-          <p>Paste the deductions your owner sent on WhatsApp, SMS or email. It&apos;s saved with your move-in photos.</p>
-        </div>
-      </div>
-      <label className="lab" htmlFor="f-deductions">Owner&apos;s deductions</label>
-      <textarea
-        id="f-deductions"
-        style={{ minHeight: 200 }}
-        value={flat.deductionsText}
-        onChange={(e) => patchFlat({ deductionsText: e.target.value })}
-        placeholder={"Painting charges  ₹18,000\nDeep cleaning  ₹4,500\nKitchen tile repair  ₹6,000"}
-      />
-      <div className="empty" style={{ marginTop: 18 }}>
-        <span className="eic"><Icon name="sparkle" /></span>
-        <b>Claude&apos;s charge-by-charge check is coming in the next update</b>
-        <span>It will label every charge as already there, wear and tear, no bill or likely valid, using your photos and notes.</span>
-      </div>
-    </>
-  );
-}
-
-function LetterPlaceholder({ onStep }: { onStep: (s: Step) => void }) {
-  return (
-    <>
-      <div className="panel-head">
-        <div>
-          <div className="ttl"><h2>Refund letter</h2><span className="when">At move-out</span></div>
-          <p>A polite, firm letter in rupees that cites your photo numbers and asks for the balance by bank transfer or UPI.</p>
-        </div>
-      </div>
-      <div className="empty">
-        <span className="eic"><Icon name="doc" /></span>
-        <b>The letter is built from your decisions in step 2</b>
-        <span>It arrives together with Claude&apos;s deduction check.</span>
-        <button className="btn small" type="button" onClick={() => onStep("check")}>Go to step 2 <Icon name="arrow" small /></button>
-      </div>
-    </>
   );
 }
 

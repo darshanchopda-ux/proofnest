@@ -1,0 +1,262 @@
+"use client";
+
+import { useEffect, useState, type Dispatch, type FormEvent, type SetStateAction } from "react";
+import { CountUp } from "@/components/CountUp";
+import { Icon } from "@/components/Icon";
+import { useToast } from "@/components/Toast";
+import { addCharge, deleteCharge, setChargeDecision } from "@/app/flats/actions";
+import { totals } from "@/lib/guidance";
+import { fmtDate, money, plural } from "@/lib/format";
+import { AI_LABEL, DECISIONS, type ChargeDTO, type Decision, type FlatDTO, type FlatPatch, type PhotoDTO } from "@/lib/types";
+
+const MESSAGES = [
+  "Reading the owner's deductions…",
+  "Looking at your move-in photos…",
+  "Matching each charge to your evidence…",
+  "Separating damage from normal wear and tear…",
+  "Writing up a verdict for each charge…",
+];
+
+export type CheckState = { running: boolean; status: string; error: boolean; replay: number };
+
+type Props = {
+  flat: FlatDTO;
+  setFlat: Dispatch<SetStateAction<FlatDTO>>;
+  patchFlat: (patch: FlatPatch, delay?: number) => void;
+  check: CheckState;
+  screenshot: File | null;
+  setScreenshot: (file: File | null) => void;
+  onRun: () => void;
+  onStop: () => void;
+  onZoom: (photo: PhotoDTO) => void;
+  onGoRecord: () => void;
+};
+
+export function CheckStep({ flat, setFlat, patchFlat, check, screenshot, setScreenshot, onRun, onStop, onZoom, onGoRecord }: Props) {
+  const toast = useToast();
+  const [msg, setMsg] = useState(0);
+  const [item, setItem] = useState("");
+  const [amount, setAmount] = useState("");
+  const [fresh, setFresh] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!check.running) return;
+    const id = setInterval(() => setMsg((m) => (m + 1) % MESSAGES.length), 2600);
+    return () => clearInterval(id);
+  }, [check.running]);
+
+  const photoByN = new Map(flat.photos.map((p) => [p.n, p]));
+  const real = flat.photos.filter((p) => p.src);
+  const noted = flat.photos.filter((p) => p.note).length;
+  const t = totals(flat.charges);
+
+  async function decide(c: ChargeDTO, decision: Decision) {
+    setFlat((f) => ({ ...f, charges: f.charges.map((x) => (x.id === c.id ? { ...x, decision } : x)) }));
+    const result = await setChargeDecision(flat.id, c.id, decision);
+    if (!result.ok) toast(result.error, "bad");
+  }
+
+  async function remove(c: ChargeDTO) {
+    const result = await deleteCharge(flat.id, c.id);
+    if (!result.ok) return toast(result.error, "bad");
+    setFlat((f) => ({ ...f, charges: f.charges.filter((x) => x.id !== c.id) }));
+  }
+
+  async function add(e: FormEvent) {
+    e.preventDefault();
+    if (!item.trim()) return;
+    const result = await addCharge(flat.id, item, Number(amount));
+    if (!result.ok) return toast(result.error, "bad");
+    setFlat((f) => ({ ...f, stage: "moveout", charges: [...f.charges, result.data] }));
+    setFresh(result.data.id);
+    setItem("");
+    setAmount("");
+  }
+
+  return (
+    <>
+      <div className="panel-head">
+        <div>
+          <div className="ttl"><h2>Check deductions</h2><span className="when">At move-out</span></div>
+          <p>
+            Paste the deductions your owner sent on WhatsApp, SMS or email. Claude compares each charge with your move-in record and suggests
+            what to dispute. You make the final call on every charge.
+          </p>
+        </div>
+      </div>
+
+      <div className="two">
+        <div className="subcard">
+          <div className="mini"><span>A</span>What does the owner want to deduct?</div>
+          <label className="sr" htmlFor="f-deductions">Owner&apos;s deductions</label>
+          <textarea
+            id="f-deductions"
+            value={flat.deductionsText}
+            onChange={(e) => patchFlat({ deductionsText: e.target.value })}
+            placeholder={"Painting charges  ₹18,000\nDeep cleaning  ₹4,500\nKitchen tile repair  ₹6,000"}
+          />
+          <div className="shot">
+            {screenshot ? (
+              <>
+                <span className="chip manual">{screenshot.name || "Screenshot"}</span>
+                <button className="btn small ghost" type="button" onClick={() => setScreenshot(null)}>Remove</button>
+              </>
+            ) : (
+              <label className="btn small ghost file-btn">
+                <Icon name="camera" small />Add a screenshot
+                <input
+                  type="file"
+                  accept="image/*"
+                  aria-label="Screenshot of the owner's deductions"
+                  onChange={(e) => {
+                    setScreenshot(e.target.files?.[0] ?? null);
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+            )}
+          </div>
+        </div>
+
+        <div className="subcard">
+          <div className="mini"><span>B</span>Evidence Claude will use</div>
+          {real.length > 0 && (
+            <div className="thumbs">
+              {real.slice(0, 8).map((p) => (
+                <button key={p.id} type="button" className="thumb" onClick={() => onZoom(p)}>
+                  {/* eslint-disable-next-line @next/next/no-img-element -- private, auth-checked image route */}
+                  <img src={p.src!} alt="" loading="lazy" />
+                  <small>P{p.n} · {p.room}</small>
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="evlist">
+            <div><Icon name="check" />{plural(flat.photos.length, "move-in photo")} with room and condition{real.length ? ` (up to 8 shown to Claude)` : ""}</div>
+            <div><Icon name="check" />{plural(noted, "photo note")}</div>
+            <div><Icon name="check" />{flat.evidenceNotes.trim() ? "Your other evidence (WhatsApp, emails)" : "No other evidence yet"}</div>
+          </div>
+          <button className="linkbtn" type="button" onClick={onGoRecord} style={{ justifySelf: "start", fontSize: ".84rem" }}>
+            Improve your record <Icon name="arrow" small />
+          </button>
+        </div>
+      </div>
+
+      <div className="cta">
+        <button className="btn big accent" type="button" onClick={onRun} disabled={check.running}>
+          <Icon name="sparkle" />{flat.charges.some((c) => c.source === "ai") ? "Check again" : "Check with Claude"}
+        </button>
+        {check.running && <button className="btn ghost" type="button" onClick={onStop}>Stop</button>}
+        <span className={`status ${check.error ? "err" : check.status.startsWith("Done") ? "good" : ""}`} role="status" aria-live="polite">
+          {check.status || (flat.analyzedAt && !check.running ? `Last checked ${fmtDate(flat.analyzedAt, true)}.` : "")}
+        </span>
+      </div>
+
+      {check.running ? (
+        <div className="progress-card">
+          <div className="pbar"><i /></div>
+          <p className="pmsg"><Icon name="sparkle" small /><span key={msg}>{MESSAGES[msg]}</span></p>
+          {[0, 1, 2].map((k) => (
+            <div className="skrow" key={k}><span className="skel w60" /><span className="skel w30" /><span className="skel w90" /></div>
+          ))}
+        </div>
+      ) : flat.charges.length ? (
+        <div className={check.replay ? "enter" : ""} key={check.replay}>
+          <div className="summary">
+            <div><span>Charged</span><b><CountUp value={t.all} replay={check.replay} /></b></div>
+            <div className="s-ok"><span>Disputing</span><b><CountUp value={t.dispute} replay={check.replay} /></b></div>
+            <div className="s-check"><span>Ask to explain</span><b><CountUp value={t.check} replay={check.replay} /></b></div>
+            <div><span>Accepting</span><b><CountUp value={t.accept} replay={check.replay} /></b></div>
+          </div>
+          <div className="rows">
+            {flat.charges.map((c, i) => (
+              <ChargeRow key={c.id} charge={c} index={i} fresh={fresh === c.id} photoByN={photoByN} onDecide={decide} onRemove={remove} onZoom={onZoom} />
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div className="empty" style={{ marginTop: 20 }}>
+          <span className="eic"><Icon name="sparkle" /></span>
+          <b>Your verdicts appear here</b>
+          <span>One card per charge, with the photos it relies on and a choice of what to do.</span>
+        </div>
+      )}
+
+      <form className="addcharge" onSubmit={add}>
+        <label className="sr" htmlFor="ac-item">Charge</label>
+        <input id="ac-item" type="text" placeholder="Add a charge by hand, e.g. Sofa cleaning" maxLength={160} value={item} onChange={(e) => setItem(e.target.value)} />
+        <label className="sr" htmlFor="ac-amt">Amount in rupees</label>
+        <input id="ac-amt" type="number" placeholder="Amount (₹)" min={0} step={1} inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value)} />
+        <button className="btn small ghost" type="submit"><Icon name="plus" small />Add charge</button>
+      </form>
+    </>
+  );
+}
+
+function ChargeRow({
+  charge: c,
+  index,
+  fresh,
+  photoByN,
+  onDecide,
+  onRemove,
+  onZoom,
+}: {
+  charge: ChargeDTO;
+  index: number;
+  fresh: boolean;
+  photoByN: Map<number, PhotoDTO>;
+  onDecide: (c: ChargeDTO, d: Decision) => void;
+  onRemove: (c: ChargeDTO) => void;
+  onZoom: (p: PhotoDTO) => void;
+}) {
+  const [armed, setArmed] = useState(false);
+  const [leaving, setLeaving] = useState(false);
+  const low = c.confidence != null && c.confidence < 0.8 && c.aiVerdict !== "check";
+  return (
+    <div className={`row st d-${c.decision} ${fresh ? "pop" : ""} ${leaving ? "leaving" : ""}`} style={{ ["--i" as string]: index }}>
+      <div className="row-top">
+        <span className="row-item">{c.item}</span>
+        <span className="row-amt">{money(c.amount)}</span>
+      </div>
+      <div className="row-meta">
+        {c.aiVerdict ? (
+          <>
+            <span className={`chip vstamp ${c.aiVerdict}`} style={{ ["--i" as string]: index }}>{AI_LABEL[c.aiVerdict]}</span>
+            {c.confidence != null && <span className="conf">Claude, {Math.round(c.confidence * 100)}% sure</span>}
+            {low && <span className="chip check">Check this</span>}
+          </>
+        ) : (
+          <span className="chip manual">Added by you</span>
+        )}
+        {c.photoNs.map((n) => {
+          const p = photoByN.get(n);
+          return p ? <button key={n} type="button" className="pref" onClick={() => onZoom(p)}>P{n}</button> : null;
+        })}
+      </div>
+      {c.reason && <p className="row-reason">{c.reason}</p>}
+      <div className="row-decide">
+        <label htmlFor={`vd-${c.id}`}>Your decision</label>
+        <select id={`vd-${c.id}`} value={c.decision} onChange={(e) => onDecide(c, e.target.value as Decision)}>
+          {(Object.keys(DECISIONS) as Decision[]).map((d) => <option key={d} value={d}>{DECISIONS[d]}</option>)}
+        </select>
+        <button
+          className={`iconbtn ${armed ? "armed" : ""}`}
+          type="button"
+          aria-label={armed ? "Confirm removing this charge" : "Remove charge"}
+          onClick={() => {
+            if (!armed) {
+              setArmed(true);
+              setTimeout(() => setArmed(false), 3500);
+              return;
+            }
+            setLeaving(true);
+            setTimeout(() => onRemove(c), 200);
+          }}
+        >
+          {armed ? "Sure?" : <Icon name="trash" small />}
+        </button>
+      </div>
+    </div>
+  );
+}
