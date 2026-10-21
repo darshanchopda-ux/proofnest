@@ -12,7 +12,7 @@ Live: https://proofnest-three.vercel.app (Vercel project `proofnest` in the VBC1
 | Database | Neon Postgres (project `proofnest`, Singapore) via Drizzle ORM |
 | Sign-in | Neon Auth (Managed Better Auth), email and password |
 | Files | Vercel Blob, **private** store. Photos are only served through `/api/photos/[id]` after an ownership check |
-| AI | n8n workflows calling the Claude API (`claude-opus-5-5`). Setup: [n8n/README.md](n8n/README.md) |
+| AI | n8n workflows calling Google's Gemini API (`gemini-3.8-flash`, free tier). Setup: [n8n/README.md](n8n/README.md) |
 
 ## Run it locally
 
@@ -57,4 +57,4 @@ npm run db:migrate
 
 ## Status
 
-Phase 1 and 2 are in: sign-in, flats, rooms, photo upload with capture time and fingerprint, details, WhatsApp summary, Claude's deduction check with per-charge decisions, and the refund letter (Claude or template). Rent agreement reading comes next.
+Phase 1 and 2 are in: sign-in, flats, rooms, photo upload with capture time and fingerprint, details, WhatsApp summary, the AI deduction check with per-charge decisions, and the refund letter (AI or template). Rent agreement reading comes next.

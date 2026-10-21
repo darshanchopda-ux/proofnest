@@ -92,7 +92,7 @@ export default function Home() {
             <span>
               <small>Day you move out</small>
               <b>Check each deduction</b>
-              <p>Paste the owner&apos;s message. Claude matches every charge to your photos.</p>
+              <p>Paste the owner&apos;s message. AI matches every charge to your photos.</p>
             </span>
           </li>
           <li>

@@ -6,6 +6,8 @@ import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const code = (name) => readFileSync(join(here, "src", name), "utf8");
+// The two "Read Gemini reply" nodes share readGemini(); n8n Code nodes can't import, so it is inlined.
+const parseCode = (name) => code("gemini-reply.js") + "\n" + code(name);
 
 function workflow({ name, path, buildFile, parseFile }) {
   const nodes = [
@@ -19,7 +21,7 @@ function workflow({ name, path, buildFile, parseFile }) {
     },
     {
       parameters: { jsCode: code(buildFile) },
-      name: "Build Claude request",
+      name: "Build Gemini request",
       type: "n8n-nodes-base.code",
       typeVersion: 2,
       position: [240, 0],
@@ -27,16 +29,9 @@ function workflow({ name, path, buildFile, parseFile }) {
     {
       parameters: {
         method: "POST",
-        url: "https://api.anthropic.com/v1/messages",
+        url: "={{ 'https://generativelanguage.googleapis.com/v1beta/models/' + $json.model + ':generateContent' }}",
         authentication: "genericCredentialType",
         genericAuthType: "httpHeaderAuth",
-        sendHeaders: true,
-        headerParameters: {
-          parameters: [
-            { name: "anthropic-version", value: "2023-06-01" },
-            { name: "anthropic-beta", value: "server-side-fallback-2026-07-01" },
-          ],
-        },
         sendBody: true,
         specifyBody: "json",
         jsonBody: "={{ JSON.stringify($json.request) }}",
@@ -45,14 +40,14 @@ function workflow({ name, path, buildFile, parseFile }) {
           response: { response: { fullResponse: true, neverError: true } },
         },
       },
-      name: "Call Claude API",
+      name: "Call Gemini API",
       type: "n8n-nodes-base.httpRequest",
       typeVersion: 4.2,
       position: [480, 0],
     },
     {
-      parameters: { jsCode: code(parseFile) },
-      name: "Read Claude reply",
+      parameters: { jsCode: parseCode(parseFile) },
+      name: "Read Gemini reply",
       type: "n8n-nodes-base.code",
       typeVersion: 2,
       position: [720, 0],
@@ -70,10 +65,10 @@ function workflow({ name, path, buildFile, parseFile }) {
     name,
     nodes,
     connections: {
-      ...link("ProofNest webhook", "Build Claude request"),
-      ...link("Build Claude request", "Call Claude API"),
-      ...link("Call Claude API", "Read Claude reply"),
-      ...link("Read Claude reply", "Respond to ProofNest"),
+      ...link("ProofNest webhook", "Build Gemini request"),
+      ...link("Build Gemini request", "Call Gemini API"),
+      ...link("Call Gemini API", "Read Gemini reply"),
+      ...link("Read Gemini reply", "Respond to ProofNest"),
     },
     settings: { executionOrder: "v1" },
     pinData: {},

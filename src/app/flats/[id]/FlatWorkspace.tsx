@@ -120,7 +120,7 @@ export function FlatWorkspace({ initialFlat, initialStep }: { initialFlat: FlatD
     }
   }, [flat, toast]);
 
-  /** Sends the owner's deductions (and an optional screenshot) to Claude through the check route. */
+  /** Sends the owner's deductions (and an optional screenshot) to the AI through the check route. */
   const runCheck = useCallback(async () => {
     if (check.running) return;
     if (!flat.deductionsText.trim() && !screenshot) {

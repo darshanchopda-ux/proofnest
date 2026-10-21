@@ -63,7 +63,7 @@ export function RecordStep({ flat, setFlat, pending, freshIds, onFiles, onZoom, 
           <li>Shoot in daylight with the lights on. Stand in a corner so each photo shows two walls and the floor.</li>
           <li>Then take close-ups of every crack, stain, chip, loose hinge or seepage mark, and mark the photo Worn or Damaged.</li>
           <li>Open the wardrobe, fridge, geyser and kitchen cabinets. Owners often charge for what is inside.</li>
-          <li>Add a short note to each photo. Claude reads the notes when it checks the owner&apos;s deductions.</li>
+          <li>Add a short note to each photo. The AI reads the notes when it checks the owner&apos;s deductions.</li>
         </ul>
       </details>
 
@@ -106,7 +106,7 @@ export function RecordStep({ flat, setFlat, pending, freshIds, onFiles, onZoom, 
           onChange={(e) => patchFlat({ evidenceNotes: e.target.value })}
           placeholder="WhatsApp messages, emails and rent agreement clauses, with dates. For example: 2 Mar 2024, owner on WhatsApp: the cracked kitchen tile is old, don't worry."
         />
-        <p className="hint">Claude can cite anything you write here when it checks the owner&apos;s deductions.</p>
+        <p className="hint">The AI can cite anything you write here when it checks the owner&apos;s deductions.</p>
       </div>
     </>
   );

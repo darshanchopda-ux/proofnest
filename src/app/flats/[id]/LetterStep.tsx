@@ -20,7 +20,7 @@ export function LetterStep({ flat, patchFlat, onStep, onCopy }: Props) {
   const toast = useToast();
   const [writing, setWriting] = useState(false);
   const [status, setStatus] = useState<{ text: string; kind: "" | "good" | "err" }>({ text: "", kind: "" });
-  const [armed, setArmed] = useState<"" | "claude" | "template">("");
+  const [armed, setArmed] = useState<"" | "ai" | "template">("");
   const [replay, setReplay] = useState(1);
   const ctl = useRef<AbortController | null>(null);
 
@@ -44,7 +44,7 @@ export function LetterStep({ flat, patchFlat, onStep, onCopy }: Props) {
   const hasLetter = flat.letter.trim().length > 0;
 
   /** Asks for a second click before replacing a letter the tenant may have edited. */
-  function confirmReplace(kind: "claude" | "template"): boolean {
+  function confirmReplace(kind: "ai" | "template"): boolean {
     if (!hasLetter || armed === kind) {
       setArmed("");
       return true;
@@ -54,11 +54,11 @@ export function LetterStep({ flat, patchFlat, onStep, onCopy }: Props) {
     return false;
   }
 
-  async function writeWithClaude() {
-    if (!confirmReplace("claude")) return;
+  async function writeWithAI() {
+    if (!confirmReplace("ai")) return;
     ctl.current = new AbortController();
     setWriting(true);
-    setStatus({ text: "Claude is writing your letter…", kind: "" });
+    setStatus({ text: "AI is writing your letter…", kind: "" });
     try {
       const res = await fetch(`/api/flats/${flat.id}/letter`, { method: "POST", signal: ctl.current.signal });
       const json = (await res.json().catch(() => null)) as { ok: boolean; letter?: string; truncated?: boolean; error?: string } | null;
@@ -116,8 +116,8 @@ export function LetterStep({ flat, patchFlat, onStep, onCopy }: Props) {
       )}
 
       <div className="actions" style={{ margin: "0 0 12px" }}>
-        <button className={`btn accent ${armed === "claude" ? "armed" : ""}`} type="button" onClick={writeWithClaude} disabled={writing}>
-          <Icon name="sparkle" small />{armed === "claude" ? "Replace current letter?" : "Write with Claude"}
+        <button className={`btn accent ${armed === "ai" ? "armed" : ""}`} type="button" onClick={writeWithAI} disabled={writing}>
+          <Icon name="sparkle" small />{armed === "ai" ? "Replace current letter?" : "Write with AI"}
         </button>
         <button className={`btn ghost ${armed === "template" ? "armed" : ""}`} type="button" onClick={buildTemplate} disabled={writing}>
           <Icon name="doc" small />{armed === "template" ? "Replace current letter?" : "Build from template"}
@@ -127,7 +127,7 @@ export function LetterStep({ flat, patchFlat, onStep, onCopy }: Props) {
       </div>
 
       <div className={`paper ${writing ? "streaming" : ""}`}>
-        {writing && <span className="paper-badge"><i />Claude is writing</span>}
+        {writing && <span className="paper-badge"><i />AI is writing</span>}
         <label className="sr" htmlFor="f-letter">Letter</label>
         <textarea
           id="f-letter"
@@ -135,7 +135,7 @@ export function LetterStep({ flat, patchFlat, onStep, onCopy }: Props) {
           className={replay > 1 ? "pop" : ""}
           value={flat.letter}
           onChange={(e) => patchFlat({ letter: e.target.value })}
-          placeholder="Choose Write with Claude or Build from template. Your letter appears here."
+          placeholder="Choose Write with AI or Build from template. Your letter appears here."
           readOnly={writing}
         />
       </div>
@@ -146,7 +146,7 @@ export function LetterStep({ flat, patchFlat, onStep, onCopy }: Props) {
       </div>
       <p className="hint" style={{ marginTop: 12 }}>
         Legal information, not legal advice. Check it against your rent agreement before you send it on WhatsApp or email. ProofNest never
-        sends anything to your owner.
+        sends anything to your owner. Write with AI uses Google&apos;s Gemini free tier, which may use what you send to improve Google&apos;s products.
       </p>
     </>
   );

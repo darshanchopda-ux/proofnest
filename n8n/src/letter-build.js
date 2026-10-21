@@ -1,6 +1,8 @@
-// n8n Code node "Build Claude request" in the proofnest-letter workflow.
+// n8n Code node "Build Gemini request" in the proofnest-letter workflow.
 // Input: the Webhook node's item, whose body is the payload sent by /api/flats/[id]/letter.
-// Output: { request } — the JSON body for POST https://api.anthropic.com/v1/messages.
+// Output: { model, request } — the model id and the JSON body for Gemini's generateContent.
+
+const MODEL = "gemini-3.8-flash";
 
 const p = $input.first().json.body || {};
 const flat = p.flat || {};
@@ -59,12 +61,10 @@ const prompt = [
 return [
   {
     json: {
+      model: MODEL,
       request: {
-        model: "claude-opus-5-5",
-        max_tokens: 16000,
-        fallbacks: "default",
-        output_config: { effort: "medium" },
-        messages: [{ role: "user", content: prompt }],
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        generationConfig: { maxOutputTokens: 8192, temperature: 0.4 },
       },
     },
   },

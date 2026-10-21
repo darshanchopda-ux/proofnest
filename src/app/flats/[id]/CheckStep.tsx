@@ -79,7 +79,7 @@ export function CheckStep({ flat, setFlat, patchFlat, check, screenshot, setScre
         <div>
           <div className="ttl"><h2>Check deductions</h2><span className="when">At move-out</span></div>
           <p>
-            Paste the deductions your owner sent on WhatsApp, SMS or email. Claude compares each charge with your move-in record and suggests
+            Paste the deductions your owner sent on WhatsApp, SMS or email. AI compares each charge with your move-in record and suggests
             what to dispute. You make the final call on every charge.
           </p>
         </div>
@@ -119,7 +119,7 @@ export function CheckStep({ flat, setFlat, patchFlat, check, screenshot, setScre
         </div>
 
         <div className="subcard">
-          <div className="mini"><span>B</span>Evidence Claude will use</div>
+          <div className="mini"><span>B</span>Evidence the AI will use</div>
           {real.length > 0 && (
             <div className="thumbs">
               {real.slice(0, 8).map((p) => (
@@ -132,7 +132,7 @@ export function CheckStep({ flat, setFlat, patchFlat, check, screenshot, setScre
             </div>
           )}
           <div className="evlist">
-            <div><Icon name="check" />{plural(flat.photos.length, "move-in photo")} with room and condition{real.length ? ` (up to 8 shown to Claude)` : ""}</div>
+            <div><Icon name="check" />{plural(flat.photos.length, "move-in photo")} with room and condition{real.length ? ` (up to 8 shown to the AI)` : ""}</div>
             <div><Icon name="check" />{plural(noted, "photo note")}</div>
             <div><Icon name="check" />{flat.evidenceNotes.trim() ? "Your other evidence (WhatsApp, emails)" : "No other evidence yet"}</div>
           </div>
@@ -144,13 +144,17 @@ export function CheckStep({ flat, setFlat, patchFlat, check, screenshot, setScre
 
       <div className="cta">
         <button className="btn big accent" type="button" onClick={onRun} disabled={check.running}>
-          <Icon name="sparkle" />{flat.charges.some((c) => c.source === "ai") ? "Check again" : "Check with Claude"}
+          <Icon name="sparkle" />{flat.charges.some((c) => c.source === "ai") ? "Check again" : "Check with AI"}
         </button>
         {check.running && <button className="btn ghost" type="button" onClick={onStop}>Stop</button>}
         <span className={`status ${check.error ? "err" : check.status.startsWith("Done") ? "good" : ""}`} role="status" aria-live="polite">
           {check.status || (flat.analyzedAt && !check.running ? `Last checked ${fmtDate(flat.analyzedAt, true)}.` : "")}
         </span>
       </div>
+      <p className="hint" style={{ display: "flex", gap: 6, alignItems: "center" }}>
+        <Icon name="lock" small />
+        Checks run on Google&apos;s Gemini free tier, which may use what you send, including photos, to improve Google&apos;s products.
+      </p>
 
       {check.running ? (
         <div className="progress-card">
@@ -223,7 +227,7 @@ function ChargeRow({
         {c.aiVerdict ? (
           <>
             <span className={`chip vstamp ${c.aiVerdict}`} style={{ ["--i" as string]: index }}>{AI_LABEL[c.aiVerdict]}</span>
-            {c.confidence != null && <span className="conf">Claude, {Math.round(c.confidence * 100)}% sure</span>}
+            {c.confidence != null && <span className="conf">AI, {Math.round(c.confidence * 100)}% sure</span>}
             {low && <span className="chip check">Check this</span>}
           </>
         ) : (

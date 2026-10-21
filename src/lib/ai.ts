@@ -8,7 +8,7 @@ import { fmtDate } from "@/lib/format";
 import { EXAMPLE_CONTENT_TYPE } from "@/lib/flats";
 import type { WorkflowUsage } from "@/lib/n8n";
 
-/** Most photos sent to Claude per check. Each is resized to 1568px, Claude's recommended long edge. */
+/** Most photos sent to the AI per check. Each is resized to 1568px on its long edge. */
 export const MAX_IMAGES = 8;
 const RUNS_PER_HOUR = 15;
 
@@ -47,8 +47,8 @@ export function pickPhotos(photos: Photo[], deductions: string, max = MAX_IMAGES
     .map((x) => x.p);
 }
 
-/** Reads a private photo and shrinks it for Claude. Returns null if it can't be read. */
-export async function photoForClaude(p: Photo): Promise<{ label: string; mediaType: string; data: string } | null> {
+/** Reads a private photo and shrinks it for the AI. Returns null if it can't be read. */
+export async function photoForAI(p: Photo): Promise<{ label: string; mediaType: string; data: string } | null> {
   try {
     const blob = await get(p.blobPathname, { access: "private" });
     if (!blob || blob.statusCode !== 200) return null;
@@ -56,12 +56,12 @@ export async function photoForClaude(p: Photo): Promise<{ label: string; mediaTy
     const small = await sharp(original).rotate().resize({ width: 1568, height: 1568, fit: "inside", withoutEnlargement: true }).jpeg({ quality: 80 }).toBuffer();
     return { label: `P${p.n} (${p.room})`, mediaType: "image/jpeg", data: small.toString("base64") };
   } catch (e) {
-    console.error("Couldn't prepare photo for Claude", p.id, e);
+    console.error("Couldn't prepare photo for the AI", p.id, e);
     return null;
   }
 }
 
-export async function imageFileForClaude(file: File): Promise<{ mediaType: string; data: string } | null> {
+export async function imageFileForAI(file: File): Promise<{ mediaType: string; data: string } | null> {
   try {
     const buf = Buffer.from(await file.arrayBuffer());
     const small = await sharp(buf).rotate().resize({ width: 2000, height: 2000, fit: "inside", withoutEnlargement: true }).jpeg({ quality: 85 }).toBuffer();
@@ -85,7 +85,7 @@ export async function agreementSummary(flatId: string): Promise<string | null> {
   return lines.join("\n") || null;
 }
 
-/** True when this flat has used up its hourly allowance of Claude calls. */
+/** True when this flat has used up its hourly allowance of AI calls. */
 export async function overRunLimit(flatId: string): Promise<boolean> {
   const [row] = await db
     .select({ n: sql<number>`count(*)::int` })

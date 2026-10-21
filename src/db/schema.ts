@@ -116,7 +116,7 @@ export const charges = pgTable(
     photoNs: integer("photo_ns").array().notNull().default(sql`'{}'::integer[]`),
     reason: text("reason").notNull().default(""),
     confidence: real("confidence"),
-    // "ai" when Claude produced it, "manual" when the tenant added it.
+    // "ai" when the AI check produced it, "manual" when the tenant added it.
     source: text("source").notNull().default("ai"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },

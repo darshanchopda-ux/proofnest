@@ -1,6 +1,9 @@
-// n8n Code node "Build Claude request" in the proofnest-check workflow.
+// n8n Code node "Build Gemini request" in the proofnest-check workflow.
 // Input: the Webhook node's item, whose body is the payload sent by /api/flats/[id]/check.
-// Output: { request } — the JSON body for POST https://api.anthropic.com/v1/messages.
+// Output: { model, request } — the model id and the JSON body for Gemini's generateContent.
+
+// Free-tier model. If you hit its daily limit, "gemini-3.5-flash-lite" is a lighter free alternative.
+const MODEL = "gemini-3.8-flash";
 
 const p = $input.first().json.body || {};
 const flat = p.flat || {};
@@ -21,14 +24,14 @@ const photoLines = (p.photos || []).length
   : "(no move-in photos recorded)";
 
 const images = p.images || [];
-const content = [];
+const parts = [];
 if (p.screenshot && p.screenshot.data) {
-  content.push({ type: "text", text: "Screenshot or photo of the owner's deductions (often a WhatsApp message or a handwritten bill). Read every charge from it:" });
-  content.push({ type: "image", source: { type: "base64", media_type: p.screenshot.mediaType || "image/jpeg", data: p.screenshot.data } });
+  parts.push({ text: "Screenshot or photo of the owner's deductions (often a WhatsApp message or a handwritten bill). Read every charge from it:" });
+  parts.push({ inline_data: { mime_type: p.screenshot.mediaType || "image/jpeg", data: p.screenshot.data } });
 }
 for (const img of images) {
-  content.push({ type: "text", text: `Move-in photo ${img.label}:` });
-  content.push({ type: "image", source: { type: "base64", media_type: img.mediaType || "image/jpeg", data: img.data } });
+  parts.push({ text: `Move-in photo ${img.label}:` });
+  parts.push({ inline_data: { mime_type: img.mediaType || "image/jpeg", data: img.data } });
 }
 
 const instructions = [
@@ -61,45 +64,42 @@ const instructions = [
   '- "no_receipt": no bill, receipt or quotation has been shared, or the amount is a round guess or too vague to check.',
   '- "likely_valid": the tenant\'s evidence does not support disputing it, for example genuine unpaid bills, or a charge the rent agreement clearly allows.',
   '- "check": unclear, not a damage charge (rent, lock-in or notice period charges), a charge the rent agreement may allow, or the tenant has to decide.',
-  "Cite only photos by their P-number exactly as listed (for example \"P4\"), and only evidence written above. Never invent photos, facts, laws, acts or deadlines. Ignore lines that are not charges, such as totals or the deposit amount.",
+  'Cite only photos by their P-number exactly as listed (for example "P4"), and only evidence written above. Never invent photos, facts, laws, acts or deadlines. Ignore lines that are not charges, such as totals or the deposit amount.',
   "amount is the charge in rupees as a plain number (1.5 lakh = 150000; 18k = 18000; 0 if none). photos lists the P-numbers that support the verdict. reason is one plain sentence addressed to the tenant. confidence is between 0 and 1.",
 ].join("\n");
-content.push({ type: "text", text: instructions });
+parts.push({ text: instructions });
 
-const schema = {
-  type: "object",
+// Gemini's response schema uses OpenAPI-style uppercase types.
+const responseSchema = {
+  type: "OBJECT",
   properties: {
     charges: {
-      type: "array",
+      type: "ARRAY",
       items: {
-        type: "object",
+        type: "OBJECT",
         properties: {
-          item: { type: "string" },
-          amount: { type: "number" },
-          verdict: { type: "string", enum: ["already_there", "wear_and_tear", "no_receipt", "likely_valid", "check"] },
-          photos: { type: "array", items: { type: "string" } },
-          reason: { type: "string" },
-          confidence: { type: "number" },
+          item: { type: "STRING" },
+          amount: { type: "NUMBER" },
+          verdict: { type: "STRING", enum: ["already_there", "wear_and_tear", "no_receipt", "likely_valid", "check"] },
+          photos: { type: "ARRAY", items: { type: "STRING" } },
+          reason: { type: "STRING" },
+          confidence: { type: "NUMBER" },
         },
         required: ["item", "amount", "verdict", "photos", "reason", "confidence"],
-        additionalProperties: false,
+        propertyOrdering: ["item", "amount", "verdict", "photos", "reason", "confidence"],
       },
     },
   },
   required: ["charges"],
-  additionalProperties: false,
 };
 
 return [
   {
     json: {
+      model: MODEL,
       request: {
-        model: "claude-opus-5-5",
-        max_tokens: 16000,
-        // If a safety classifier declines, the API re-runs the request on Anthropic's recommended fallback model.
-        fallbacks: "default",
-        output_config: { effort: "medium", format: { type: "json_schema", schema } },
-        messages: [{ role: "user", content }],
+        contents: [{ role: "user", parts }],
+        generationConfig: { responseMimeType: "application/json", responseSchema, maxOutputTokens: 16384, temperature: 0.2 },
       },
     },
   },

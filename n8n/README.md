@@ -1,23 +1,23 @@
 # ProofNest n8n workflows
 
-Two workflows do ProofNest's AI work. ProofNest's server calls them; they call the Claude API (`claude-opus-5-5`) and send the result back.
+Two workflows do ProofNest's AI work. ProofNest's server calls them; they call Google's Gemini API (`gemini-3.8-flash`, free tier) and send the result back.
 
 | Workflow file | Webhook path | Called by | Does |
 |---|---|---|---|
 | `workflows/proofnest-check.json` | `proofnest-check` | `POST /api/flats/[id]/check` | Labels every charge in the owner's deductions using the move-in photos, notes and agreement |
 | `workflows/proofnest-letter.json` | `proofnest-letter` | `POST /api/flats/[id]/letter` | Writes the refund letter from the tenant's decisions |
 
-Each workflow: **ProofNest webhook** (checks a shared secret) → **Build Claude request** → **Call Claude API** → **Read Claude reply** → **Respond to ProofNest**.
+Each workflow: **ProofNest webhook** (checks a shared secret) → **Build Gemini request** → **Call Gemini API** → **Read Gemini reply** → **Respond to ProofNest**.
 
-## Set up in n8n Cloud (about 10 minutes)
+## Set up in n8n (about 10 minutes)
 
 1. **Create two credentials** (Overview → Credentials → Create credential → *Header Auth*):
    - **ProofNest shared secret**: Name `x-proofnest-secret`, Value = the `N8N_WEBHOOK_SECRET` from ProofNest's `.env.local`.
-   - **Anthropic API key**: Name `x-api-key`, Value = your Anthropic API key from console.anthropic.com.
+   - **Gemini API key**: Name `x-goog-api-key`, Value = a free key from aistudio.google.com → *Get API key*. Under *Allowed HTTP Request Domains*, choose *Specific domains* and enter `generativelanguage.googleapis.com`.
 2. **Import both workflows**: Workflows → Create → ⋯ menu → *Import from file* → pick `workflows/proofnest-check.json`. Repeat for `proofnest-letter.json`.
-3. In each workflow, open **ProofNest webhook** and choose the *ProofNest shared secret* credential. Open **Call Claude API** and choose the *Anthropic API key* credential. Save.
+3. In each workflow, open **ProofNest webhook** and choose the *ProofNest shared secret* credential. Open **Call Gemini API** and choose the *Gemini API key* credential. Save.
 4. **Activate** both workflows (toggle at the top right). Only active workflows answer on the production URL.
-5. Copy the webhook's **Production URL** base, everything before `/proofnest-check`, for example `https://yourname.app.n8n.cloud/webhook`. Send it to whoever runs ProofNest's Vercel settings, or set it yourself:
+5. Copy the webhook's **Production URL** base, everything before `/proofnest-check`, for example `https://pgp27-n8n.mesaschool.co.in/webhook`. Send it to whoever runs ProofNest's Vercel settings, or set it yourself:
 
    ```bash
    vercel env add N8N_WEBHOOK_BASE production --value "https://yourname.app.n8n.cloud/webhook" --yes
@@ -28,7 +28,7 @@ Each workflow: **ProofNest webhook** (checks a shared secret) → **Build Claude
 
 ## Test it
 
-In n8n, open a workflow, click **Execute workflow**, and send a test request from ProofNest (open the example flat, step 2, *Check with Claude*). The execution shows each node's input and output, including Claude's raw reply and token usage.
+In n8n, open a workflow, click **Execute workflow**, and send a test request from ProofNest (open the example flat, step 2, *Check with AI*). The execution shows each node's input and output, including Gemini's raw reply and token usage.
 
 ## Edit the prompts
 
@@ -43,8 +43,9 @@ Then re-import the changed workflow in n8n, or paste the new code into its Code 
 
 ## Request details
 
-- Model `claude-opus-5-5`, `max_tokens` 16000, `output_config.effort` `medium`.
-- The check uses structured outputs (`output_config.format`, JSON schema) so the reply always parses.
-- `fallbacks: "default"` with the `anthropic-beta: server-side-fallback-2026-07-01` header: if a safety classifier declines, the API re-runs the request on Anthropic's recommended fallback model. A refusal that still happens comes back to ProofNest as `{ ok: false, code: "refused" }`.
+- `POST https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent`, key in the `x-goog-api-key` header.
+- The check asks for JSON (`generationConfig.responseMimeType` `application/json` with a `responseSchema`) so the reply parses; the reader also strips a code fence if one appears.
+- Free tier: Google applies per-minute and per-day limits (see your limits in AI Studio). A quota error comes back to ProofNest as `{ ok: false, code: "busy" }` with a "try again" message. If the daily limit is too low, change `MODEL` at the top of both *Build Gemini request* nodes to `gemini-3.5-flash-lite`.
+- Privacy: on the free tier, Google may use what you send, including photos, to improve its products. The paid tier doesn't. ProofNest says this next to the AI buttons.
 - HTTP timeout 280 seconds. ProofNest's routes allow 300.
 - ProofNest sends at most 8 photos per check, each resized to 1568px, plus an optional screenshot of the owner's message.

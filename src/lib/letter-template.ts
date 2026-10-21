@@ -2,7 +2,7 @@ import { totals } from "./guidance";
 import { fmtDate, money } from "./format";
 import { DISPUTED, type FlatDTO } from "./types";
 
-/** A refund letter built from the tenant's decisions without AI. Used when Claude isn't available or not wanted. */
+/** A refund letter built from the tenant's decisions without AI. Used when the AI isn't available or not wanted. */
 export function templateLetter(flat: FlatDTO): string {
   const t = totals(flat.charges);
   const deposit = Number(flat.deposit) || 0;

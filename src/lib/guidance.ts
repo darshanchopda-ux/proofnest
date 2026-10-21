@@ -77,8 +77,8 @@ export function nextAction(flat: FlatDTO): NextAction {
         key: "run",
         icon: "sparkle",
         title: "Check the owner's deductions",
-        text: "Claude compares every charge with your move-in photos and notes, and tells you which ones you can dispute.",
-        primary: { kind: "run-check", label: "Check with Claude" },
+        text: "AI compares every charge with your move-in photos and notes, and tells you which ones you can dispute.",
+        primary: { kind: "run-check", label: "Check with AI" },
       };
     }
     return {

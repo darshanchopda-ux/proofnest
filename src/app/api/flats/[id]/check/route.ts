@@ -2,13 +2,13 @@ import { and, asc, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { charges, flats, photos } from "@/db/schema";
-import { agreementSummary, flatFacts, imageFileForClaude, logRun, overRunLimit, photoForClaude, photoMeta, pickPhotos } from "@/lib/ai";
+import { agreementSummary, flatFacts, imageFileForAI, logRun, overRunLimit, photoForAI, photoMeta, pickPhotos } from "@/lib/ai";
 import { getCurrentUser } from "@/lib/dal";
 import { getOwnedFlat, listCharges } from "@/lib/flats";
 import { callWorkflow } from "@/lib/n8n";
 import type { Decision } from "@/lib/types";
 
-// Claude reads photos and thinks before answering; a check can take a minute or two.
+// The model reads photos and thinks before answering; a check can take a minute or two.
 export const maxDuration = 300;
 
 type CheckReply = {
@@ -43,8 +43,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const allPhotos = await db.select().from(photos).where(eq(photos.flatId, flat.id)).orderBy(asc(photos.n));
   const chosen = pickPhotos(allPhotos, deductions, screenshotFile ? 7 : 8);
   const [images, screenshot, agreement] = await Promise.all([
-    Promise.all(chosen.map(photoForClaude)),
-    screenshotFile ? imageFileForClaude(screenshotFile) : Promise.resolve(null),
+    Promise.all(chosen.map(photoForAI)),
+    screenshotFile ? imageFileForAI(screenshotFile) : Promise.resolve(null),
     agreementSummary(flat.id),
   ]);
 

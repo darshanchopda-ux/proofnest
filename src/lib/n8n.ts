@@ -35,6 +35,6 @@ export async function callWorkflow<T extends { ok: true }>(path: "proofnest-chec
     return json as T | WorkflowFailure;
   } catch (e) {
     const timedOut = e instanceof Error && e.name === "TimeoutError";
-    return { ok: false, code: timedOut ? "timeout" : "unreachable", error: timedOut ? "Claude took too long. Try again." : "Couldn't reach the AI workflow." };
+    return { ok: false, code: timedOut ? "timeout" : "unreachable", error: timedOut ? "The AI took too long. Try again." : "Couldn't reach the AI workflow." };
   }
 }

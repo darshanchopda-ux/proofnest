@@ -1,31 +1,19 @@
-// n8n Code node "Read Claude reply" in the proofnest-check workflow.
+// n8n Code node "Read Gemini reply" in the proofnest-check workflow (readGemini is prepended from gemini-reply.js).
 // Input: the HTTP Request node's full response ({ statusCode, body, headers }), with "Never error" on.
 // Output: what the Respond to Webhook node returns to ProofNest.
 
-const res = $input.first().json;
-const body = typeof res.body === "string" ? safeJson(res.body) : res.body || {};
+const reply = readGemini($input.first().json);
+if (reply.failure) return [{ json: reply.failure }];
+if (reply.truncated) return [{ json: { ok: false, code: "truncated", error: "The answer was cut short. Paste fewer charges at a time.", model: reply.model, usage: reply.usage } }];
 
-function safeJson(text) {
-  try {
-    return JSON.parse(text);
-  } catch {
-    return { raw: text };
-  }
+let parsed = null;
+try {
+  // Strip a Markdown code fence in case the model wraps its JSON in one.
+  parsed = JSON.parse(reply.text.replace(/^```(?:json)?\s*|\s*```$/g, ""));
+} catch {
+  parsed = null;
 }
-
-function fail(error, code) {
-  return [{ json: { ok: false, code, error, model: body.model || "", usage: body.usage || null } }];
+if (!parsed || !Array.isArray(parsed.charges)) {
+  return [{ json: { ok: false, code: "invalid_json", error: "The AI's answer couldn't be read. Try again.", model: reply.model, usage: reply.usage } }];
 }
-
-if (res.statusCode && res.statusCode !== 200) {
-  const message = (body.error && body.error.message) || "The Claude API returned status " + res.statusCode + ".";
-  return fail(message, res.statusCode === 429 || res.statusCode === 529 ? "busy" : "api_error");
-}
-if (body.stop_reason === "refusal") return fail("Claude declined to check these deductions. Edit the list and try again.", "refused");
-if (body.stop_reason === "max_tokens") return fail("The answer was cut short. Paste fewer charges at a time.", "truncated");
-
-const text = (body.content || []).filter((b) => b.type === "text").map((b) => b.text).join("");
-const parsed = safeJson(text);
-if (!parsed || !Array.isArray(parsed.charges)) return fail("Claude's answer couldn't be read. Try again.", "invalid_json");
-
-return [{ json: { ok: true, charges: parsed.charges, model: body.model || "", usage: body.usage || null } }];
+return [{ json: { ok: true, charges: parsed.charges, model: reply.model, usage: reply.usage } }];
