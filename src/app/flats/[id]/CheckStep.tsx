@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, type Dispatch, type FormEvent, type SetStateAction } from "react";
-import { CountUp } from "@/components/CountUp";
 import { Icon } from "@/components/Icon";
 import { useToast } from "@/components/Toast";
 import { addCharge, deleteCharge, setChargeDecision } from "@/app/flats/actions";
@@ -153,7 +152,7 @@ export function CheckStep({ flat, setFlat, patchFlat, check, screenshot, setScre
 
       <div className="cta">
         <button className="btn big accent" type="button" onClick={onRun} disabled={check.running}>
-          <Icon name="sparkle" />{flat.charges.some((c) => c.source === "ai") ? "Check again" : "Check with AI"}
+          {flat.charges.some((c) => c.source === "ai") ? "Check again with AI" : "Check with AI"}
         </button>
         {check.running && <button className="btn ghost" type="button" onClick={onStop}>Stop</button>}
         <span className={`status ${check.error ? "err" : check.status.startsWith("Done") ? "good" : ""}`} role="status" aria-live="polite">
@@ -168,7 +167,7 @@ export function CheckStep({ flat, setFlat, patchFlat, check, screenshot, setScre
       {check.running ? (
         <div className="progress-card">
           <div className="pbar"><i /></div>
-          <p className="pmsg"><Icon name="sparkle" small /><span key={msg}>{MESSAGES[msg]}</span></p>
+          <p className="pmsg"><span key={msg}>{MESSAGES[msg]}</span></p>
           {[0, 1, 2].map((k) => (
             <div className="skrow" key={k}><span className="skel w60" /><span className="skel w30" /><span className="skel w90" /></div>
           ))}
@@ -176,10 +175,10 @@ export function CheckStep({ flat, setFlat, patchFlat, check, screenshot, setScre
       ) : flat.charges.length ? (
         <div className={check.replay ? "enter" : ""} key={check.replay}>
           <div className="summary">
-            <div><span>Charged</span><b><CountUp value={t.all} replay={check.replay} /></b></div>
-            <div className="s-ok"><span>Disputing</span><b><CountUp value={t.dispute} replay={check.replay} /></b></div>
-            <div className="s-check"><span>Ask to explain</span><b><CountUp value={t.check} replay={check.replay} /></b></div>
-            <div><span>Accepting</span><b><CountUp value={t.accept} replay={check.replay} /></b></div>
+            <div><span>Charged</span><b>{money(t.all)}</b></div>
+            <div className="s-ok"><span>Disputing</span><b>{money(t.dispute)}</b></div>
+            <div className="s-check"><span>Ask to explain</span><b>{money(t.check)}</b></div>
+            <div><span>Accepting</span><b>{money(t.accept)}</b></div>
           </div>
           <div className="rows">
             {flat.charges.map((c, i) => (
@@ -189,7 +188,6 @@ export function CheckStep({ flat, setFlat, patchFlat, check, screenshot, setScre
         </div>
       ) : (
         <div className="empty" style={{ marginTop: 20 }}>
-          <span className="eic"><Icon name="sparkle" /></span>
           <b>Your verdicts appear here</b>
           <span>One card per charge, with the photos it relies on and a choice of what to do.</span>
         </div>

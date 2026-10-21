@@ -20,10 +20,10 @@ import { RecordStep } from "./RecordStep";
 const MAX_AGREEMENT_PDF_BYTES = 9 * 1024 * 1024;
 const isPdf = (f: File) => f.type === "application/pdf" || /\.pdf$/i.test(f.name);
 
-const STEPS: { id: Step; n: number; when: string; title: string }[] = [
-  { id: "record", n: 1, when: "At move-in", title: "Move-in record" },
-  { id: "check", n: 2, when: "At move-out", title: "Check deductions" },
-  { id: "letter", n: 3, when: "At move-out", title: "Refund letter" },
+const STEPS: { id: Step; n: number; when: string; title: string; short: string }[] = [
+  { id: "record", n: 1, when: "At move-in", title: "Move-in record", short: "Move-in" },
+  { id: "check", n: 2, when: "At move-out", title: "Check deductions", short: "Check" },
+  { id: "letter", n: 3, when: "At move-out", title: "Refund letter", short: "Letter" },
 ];
 
 export function FlatWorkspace({ initialFlat, initialStep }: { initialFlat: FlatDTO; initialStep: Step }) {
@@ -262,8 +262,9 @@ export function FlatWorkspace({ initialFlat, initialStep }: { initialFlat: FlatD
   return (
     <div className="wrap case">
       <CaseHead flat={flat} reading={agRead.phase !== "idle"} onEdit={() => setDrawerOpen(true)} onAgreement={() => setAgreementOpen(true)} />
-      <Stepper flat={flat} step={step} onStep={goStep} />
       <NextCard flat={flat} step={step} onStep={goStep} onFiles={addPhotos} onCopy={copySummary} onRunCheck={runCheck} onCopyLetter={copyLetter} running={check.running} />
+      <div className="folder">
+      <Stepper flat={flat} step={step} onStep={goStep} />
       <section className="panel enter" key={animKey} role="region" aria-label={STEPS.find((s) => s.id === step)?.title}>
         {step === "record" && (
           <RecordStep
@@ -294,6 +295,7 @@ export function FlatWorkspace({ initialFlat, initialStep }: { initialFlat: FlatD
         )}
         {step === "letter" && <LetterStep flat={flat} patchFlat={patchFlat} onStep={goStep} onCopy={copyLetter} />}
       </section>
+      </div>
       {drawerOpen && <DetailsDrawer flat={flat} patchFlat={patchFlat} onClose={() => setDrawerOpen(false)} />}
       {agreementOpen && (
         <AgreementDrawer
@@ -382,12 +384,6 @@ function CaseHead({ flat, reading, onEdit, onAgreement }: { flat: FlatDTO; readi
 function Stepper({ flat, step, onStep }: { flat: FlatDTO; step: Step; onStep: (s: Step) => void }) {
   const states = stepStates(flat);
   const cov = coverage(flat);
-  const [fill, setFill] = useState(0);
-  const target = states.letter === "done" ? 100 : states.check === "done" ? 75 : states.record === "done" ? 50 : states.record === "partial" ? 25 : 0;
-  useEffect(() => {
-    const id = requestAnimationFrame(() => setFill(target));
-    return () => cancelAnimationFrame(id);
-  }, [target]);
   const subs: Record<Step, string> = {
     record: `${plural(flat.photos.length, "photo")} · ${cov.covered}/${cov.total} rooms`,
     check: flat.charges.length ? `${plural(flat.charges.length, "charge")} checked` : flat.deductionsText.trim() ? "Owner's list saved" : "Owner's list",
@@ -395,7 +391,6 @@ function Stepper({ flat, step, onStep }: { flat: FlatDTO; step: Step; onStep: (s
   };
   return (
     <nav className="stepper" aria-label="Steps">
-      <div className="track" aria-hidden="true"><b style={{ width: `${fill}%` }} /></div>
       {STEPS.map((s) => (
         <button
           key={s.id}
@@ -406,8 +401,7 @@ function Stepper({ flat, step, onStep }: { flat: FlatDTO; step: Step; onStep: (s
         >
           <span className="dot">{states[s.id] === "done" ? <Icon name="check" /> : s.n}</span>
           <span className="stx">
-            <small>{s.when}</small>
-            <b>{s.title}</b>
+            <b><span className="long">{s.title}</span><span className="short">{s.short}</span></b>
             <em>{subs[s.id]}</em>
           </span>
         </button>
@@ -449,7 +443,7 @@ function NextCard({
     if (b.kind === "run-check") {
       return (
         <button className={`btn small ${cls}`} type="button" onClick={onRunCheck} disabled={running}>
-          <Icon name="sparkle" small />{running ? "Checking…" : b.label}
+          {running ? "Checking…" : b.label}
         </button>
       );
     }
@@ -492,7 +486,6 @@ function NextCard({
   };
   return (
     <section className="next enter" key={action.key} aria-label="What to do next">
-      <span className="nic"><Icon name={action.icon} /></span>
       <div>
         <small>What to do next</small>
         <b>{action.title}</b>

@@ -1,7 +1,6 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { CountUp } from "@/components/CountUp";
 import { Icon } from "@/components/Icon";
 import { useToast } from "@/components/Toast";
 import { refundAsk, totals } from "@/lib/guidance";
@@ -29,7 +28,6 @@ export function LetterStep({ flat, patchFlat, onStep, onCopy }: Props) {
       <>
         <Head />
         <div className="empty">
-          <span className="eic"><Icon name="doc" /></span>
           <b>Check the deductions first</b>
           <span>Your letter is built from what you decide about each charge in step 2.</span>
           <button className="btn small" type="button" onClick={() => onStep("check")}>Go to step 2 <Icon name="arrow" small /></button>
@@ -104,7 +102,7 @@ export function LetterStep({ flat, patchFlat, onStep, onCopy }: Props) {
       {ask != null ? (
         <div className="askcard">
           <span>You&apos;re asking for</span>
-          <b><CountUp value={ask} replay={replay} /></b>
+          <b>{money(ask)}</b>
           <small>
             Deposit {money(deposit)}
             {t.accept ? ` minus ${money(t.accept)} you accept` : ", nothing accepted"}
@@ -117,7 +115,7 @@ export function LetterStep({ flat, patchFlat, onStep, onCopy }: Props) {
 
       <div className="actions" style={{ margin: "0 0 12px" }}>
         <button className={`btn accent ${armed === "ai" ? "armed" : ""}`} type="button" onClick={writeWithAI} disabled={writing}>
-          <Icon name="sparkle" small />{armed === "ai" ? "Replace current letter?" : "Write with AI"}
+          {armed === "ai" ? "Replace current letter?" : "Write with AI"}
         </button>
         <button className={`btn ghost ${armed === "template" ? "armed" : ""}`} type="button" onClick={buildTemplate} disabled={writing}>
           <Icon name="doc" small />{armed === "template" ? "Replace current letter?" : "Build from template"}
@@ -132,7 +130,6 @@ export function LetterStep({ flat, patchFlat, onStep, onCopy }: Props) {
         <textarea
           id="f-letter"
           key={replay}
-          className={replay > 1 ? "pop" : ""}
           value={flat.letter}
           onChange={(e) => patchFlat({ letter: e.target.value })}
           placeholder="Choose Write with AI or Build from template. Your letter appears here."

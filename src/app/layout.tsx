@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Bricolage_Grotesque, IBM_Plex_Mono, Public_Sans } from "next/font/google";
+import { IBM_Plex_Mono, Public_Sans, Source_Serif_4 } from "next/font/google";
 import Link from "next/link";
 import { Suspense } from "react";
 import { BrandMark } from "@/components/Icon";
@@ -7,9 +7,9 @@ import { ToastProvider } from "@/components/Toast";
 import { UserMenu } from "@/components/UserMenu";
 import "./globals.css";
 
-const display = Bricolage_Grotesque({ subsets: ["latin"], weight: ["600", "800"], variable: "--font-display" });
+const display = Source_Serif_4({ subsets: ["latin"], style: ["normal", "italic"], variable: "--font-display" });
 const body = Public_Sans({ subsets: ["latin"], weight: ["400", "500", "600", "700"], variable: "--font-body" });
-const mono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-mono" });
+const mono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "600"], variable: "--font-mono" });
 
 export const metadata: Metadata = {
   title: "ProofNest",
