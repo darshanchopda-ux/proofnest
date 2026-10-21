@@ -461,3 +461,68 @@ footer.foot { padding-block: 28px 34px; font-size: .8rem; color: var(--muted); }
   .addcharge { grid-template-columns: minmax(0, 1fr) 120px; }
   .addcharge .btn { grid-column: 1 / -1; }
 }
+
+/* move-in record (report) */
+.ic.flip { transform: scaleX(-1); }
+.report { padding-block: 24px 40px; display: grid; gap: 16px; }
+.rp-bar { display: grid; gap: 12px; }
+.rp-bar .linkbtn { justify-self: start; }
+.rp-bar .linkbtn:hover .ic.flip { transform: scaleX(-1) translateX(4px); }
+.rp-bar-main { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+.rp-bar-main .hint { flex: 1 1 280px; }
+.rp-doc { background: var(--sheet); border: 1px solid var(--rule); border-radius: 12px; padding: 28px; display: grid; gap: 22px; }
+.rp-brand { display: flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.rp-brand svg { width: 20px; height: 20px; color: var(--accent); }
+.rp-head { display: grid; gap: 12px; }
+.rp-head h1 { font-family: var(--display); font-size: clamp(1.5rem, 3.4vw, 2.1rem); line-height: 1.15; margin: 0; }
+.rp-facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px; margin: 0; }
+.rp-facts div { background: var(--paper); border-radius: 8px; padding: 8px 11px; min-width: 0; }
+.rp-facts dt { font-family: var(--mono); font-size: .64rem; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
+.rp-facts dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.rp-intro { margin: 0; max-width: 70ch; }
+.rp-sec { display: grid; gap: 12px; }
+.rp-sec h2 { font-family: var(--display); font-size: 1.2rem; margin: 0; padding-bottom: 6px; border-bottom: 1px solid var(--rule); break-after: avoid; }
+.rp-sec h2 small { font-family: var(--body); font-size: .8rem; font-weight: 500; color: var(--muted); margin-left: 6px; }
+.rp-issues ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
+.rp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+.rp-photo { margin: 0; border: 1px solid var(--rule); border-radius: 10px; overflow: hidden; display: grid; break-inside: avoid; }
+.rp-photo.c-damaged { border-color: var(--bad); }
+.rp-photo img, .rp-ph { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: contain; background: var(--paper); }
+.rp-ph { display: grid; place-items: center; color: var(--muted); font-size: .85rem; }
+.rp-photo figcaption { padding: 10px 12px 12px; display: grid; gap: 5px; font-size: .86rem; }
+.rp-photo figcaption p { margin: 0; }
+.rp-photo small { color: var(--muted); font-size: .76rem; line-height: 1.45; }
+.rp-photo code, .rp-foot code { font-family: var(--mono); font-size: .66rem; color: var(--muted); overflow-wrap: anywhere; }
+.rp-cap { display: flex; gap: 8px; align-items: center; }
+.rp-cap b { font-family: var(--mono); }
+.rp-cond { font-family: var(--mono); font-size: .66rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; padding: 2px 7px; border-radius: 999px; }
+.rp-cond.c-good { color: var(--ok); background: var(--ok-soft); }
+.rp-cond.c-worn { color: var(--warn); background: var(--warn-soft); }
+.rp-cond.c-damaged { color: var(--bad); background: var(--bad-soft); }
+.rp-missing { margin: 0; color: var(--muted); font-size: .88rem; }
+.rp-sign p { margin: 0; }
+.rp-lines { display: grid; grid-template-columns: 2fr 2fr 1fr; gap: 18px; }
+.rp-lines div { border-bottom: 1px solid var(--ink); min-height: 44px; display: flex; align-items: flex-end; }
+.rp-lines span { font-size: .72rem; color: var(--muted); transform: translateY(18px); }
+.rp-lines + .rp-lines { margin-top: 12px; }
+.rp-sign { break-inside: avoid; padding-bottom: 14px; }
+.rp-foot { display: grid; gap: 6px; font-size: .8rem; color: var(--muted); border-top: 1px solid var(--rule); padding-top: 12px; }
+.rp-foot p { margin: 0; }
+@media (max-width: 640px) {
+  .rp-doc { padding: 18px 16px; }
+  .rp-lines { grid-template-columns: minmax(0, 1fr); }
+}
+@media print {
+  /* Print in light colours whatever the screen theme, since printers drop backgrounds. */
+  :root { --paper: #F4F6F6; --sheet: #FFFFFF; --ink: #111111; --muted: #4A4A4A; --rule: #C9CFD1; --ok: #1D7A4E; --ok-soft: #E0F1E7; --warn: #A3540E; --warn-soft: #F7E7D5; --bad: #A8271E; --bad-soft: #F6E1DE; --accent: #C78A0A; }
+  @page { size: A4; margin: 14mm 12mm; }
+  html, body { background: #fff !important; color: var(--ink); font-size: 10pt; }
+  .appbar, .foot, .no-print, .toast { display: none !important; }
+  main, .report { padding: 0 !important; margin: 0 !important; max-width: none !important; }
+  .rp-doc { border: 0; border-radius: 0; padding: 0; gap: 16px; }
+  .rp-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .rp-photo img, .rp-ph { aspect-ratio: 4 / 3; }
+  .rp-facts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .rp-cond, .rp-facts div, .rp-ph { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  a { color: inherit; text-decoration: none; }
+}

@@ -35,6 +35,7 @@ export type NextButton =
   | { kind: "upload"; label: string; room: string }
   | { kind: "step"; label: string; step: Step; icon?: IconName }
   | { kind: "copy-summary"; label: string }
+  | { kind: "link"; label: string; href: string; icon: IconName }
   | { kind: "run-check"; label: string }
   | { kind: "copy-letter"; label: string };
 
@@ -67,8 +68,9 @@ export function nextAction(flat: FlatDTO): NextAction {
       key: "share",
       icon: "chat",
       title: "Record complete. Send it to your owner today.",
-      text: "Once your owner has it on WhatsApp, they can't say the flat was different when you moved in.",
+      text: "Save your move-in record as a PDF and send it with the message on WhatsApp. Once your owner has it, they can't say the flat was different when you moved in.",
       primary: { kind: "copy-summary", label: "Copy WhatsApp message" },
+      secondary: { kind: "link", label: "Move-in record (PDF)", href: `/flats/${flat.id}/report`, icon: "download" },
     };
   }
   if (!flat.charges.length) {
@@ -103,7 +105,7 @@ export function nextAction(flat: FlatDTO): NextAction {
     key: "send",
     icon: "chat",
     title: "Send the letter to your owner",
-    text: "Paste it into WhatsApp or email, and attach your move-in photos so every one is on record.",
+    text: "Paste it into WhatsApp or email, and attach your move-in record (PDF) so every photo is on record.",
     primary: { kind: "copy-letter", label: "Copy letter" },
   };
 }
@@ -140,7 +142,7 @@ export function summaryText(flat: FlatDTO): string {
     "",
     `I took ${flat.photos.length} photos across ${rooms.join(", ") || "no rooms yet"}.`,
     issues.length ? `\nExisting damage and wear I noticed:\n${issues.join("\n")}` : "",
-    "\nI can share the dated photos on request. Please reply to confirm you have received this.",
+    "\nMy move-in record (PDF, attached) has every photo with the time it was taken. Please reply to confirm you have received it.",
     "",
     "Thank you,",
     flat.tenantName || "[Your name]",

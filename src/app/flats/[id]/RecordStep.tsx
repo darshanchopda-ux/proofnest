@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRef, useState, type Dispatch, type FormEvent, type SetStateAction } from "react";
 import { Icon } from "@/components/Icon";
 import { useToast } from "@/components/Toast";
@@ -52,6 +53,9 @@ export function RecordStep({ flat, setFlat, pending, freshIds, onFiles, onZoom, 
         </div>
         <div className="head-actions">
           <button className="btn small ghost" type="button" onClick={onCopy}><Icon name="copy" small />WhatsApp message</button>
+          {flat.photos.length > 0 && (
+            <Link className="btn small ghost" href={`/flats/${flat.id}/report`}><Icon name="download" small />Move-in record (PDF)</Link>
+          )}
         </div>
       </div>
 

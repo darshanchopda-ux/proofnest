@@ -1,6 +1,7 @@
 "use client";
 
 import { upload } from "@vercel/blob/client";
+import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Icon } from "@/components/Icon";
 import { useToast } from "@/components/Toast";
@@ -457,6 +458,13 @@ function NextCard({
         <button className={`btn small ${cls}`} type="button" onClick={onCopyLetter}>
           <Icon name="copy" small />{b.label}
         </button>
+      );
+    }
+    if (b.kind === "link") {
+      return (
+        <Link className={`btn small ${cls}`} href={b.href}>
+          <Icon name={b.icon} small />{b.label}
+        </Link>
       );
     }
     if (b.kind === "copy-summary") {
