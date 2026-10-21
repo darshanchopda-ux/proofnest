@@ -1,4 +1,4 @@
-// Shared by both "Read Gemini reply" Code nodes (build.mjs prepends it).
+// Shared by every "Read Gemini reply" Code node (build.mjs prepends it).
 // Turns Gemini's generateContent response into { text } or a ProofNest failure.
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- called by the parse code that follows it

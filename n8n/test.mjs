@@ -74,3 +74,24 @@ assert.equal(letter.ok, true);
 assert.equal(letter.letter, "Dear Mr. Sharma,");
 assert.equal(runNode("letter-parse.js", gemini("Dear", { candidates: [{ content: { parts: [{ text: "Dear" }] }, finishReason: "MAX_TOKENS" }] }))[0].json.truncated, true);
 console.log("letter-build and letter-parse ok");
+
+// agreement-build and agreement-parse
+const [agReq] = runNode("agreement-build.js", { body: { files: [{ name: "agreement.pdf", mediaType: "application/pdf", data: "JVBERi0=" }, { name: "page-2.jpg", mediaType: "image/jpeg", data: "AAAA" }], text: "" } });
+const agParts = agReq.json.request.contents[0].parts;
+assert.deepEqual(agParts.map((p) => Object.keys(p)[0]), ["text", "inline_data", "text", "inline_data", "text"]);
+assert.equal(agParts[1].inline_data.mime_type, "application/pdf");
+assert.match(agParts.at(-1).text, /The 2 files above are the agreement, in order/);
+assert.doesNotMatch(agParts.at(-1).text, /PASTED/);
+const agSchema = agReq.json.request.generationConfig.responseSchema;
+assert.equal(agSchema.properties.refundDays.nullable, true);
+assert.deepEqual(agSchema.required, agSchema.propertyOrdering);
+assert.deepEqual(agReq.json.request.generationConfig.thinkingConfig, { thinkingLevel: "LOW" });
+const [pastedReq] = runNode("agreement-build.js", { body: { files: [], text: "Clause 4: deposit refunded at handover." } });
+assert.deepEqual(pastedReq.json.request.contents[0].parts.map((p) => Object.keys(p)[0]), ["text"]);
+assert.match(pastedReq.json.request.contents[0].parts[0].text, /Clause 4: deposit refunded at handover/);
+const agOk = runNode("agreement-parse.js", gemini('{"isAgreement":true,"ownerName":"R. Sharma","refundDays":0,"clauses":[],"watchOut":[],"pageCount":3}'))[0].json;
+assert.equal(agOk.ok, true);
+assert.equal(agOk.agreement.ownerName, "R. Sharma");
+assert.equal(runNode("agreement-parse.js", gemini("[1,2]"))[0].json.code, "invalid_json");
+assert.equal(runNode("agreement-parse.js", { statusCode: 503, body: { error: { message: "overloaded" } } })[0].json.code, "busy");
+console.log("agreement-build and agreement-parse ok");

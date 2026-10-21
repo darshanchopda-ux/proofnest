@@ -1,0 +1,137 @@
+{
+  "name": "ProofNest · read agreement",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "proofnest-agreement",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "name": "ProofNest webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "proofnest-agreement"
+    },
+    {
+      "parameters": {
+        "jsCode": "// n8n Code node \"Build Gemini request\" in the proofnest-agreement workflow.\n// Input: the Webhook node's item, whose body is the payload sent by /api/flats/[id]/agreement.\n// Output: { model, request } — the model id and the JSON body for Gemini's generateContent.\n\nconst p = $input.first().json.body || {};\n\n// ProofNest can override these per request (AI_MODEL / AI_THINKING_LEVEL on Vercel) without editing this node.\nconst MODEL = p.model || \"gemini-3.8-flash\";\nconst THINKING = String(p.thinkingLevel || \"low\").toUpperCase();\nconst TOPICS = [\"Deposit refund\", \"Painting\", \"Deductions\", \"Repairs and maintenance\", \"Lock-in\", \"Notice period\", \"Rent increase\", \"Other\"];\n\nconst files = p.files || [];\nconst pasted = String(p.text || \"\").slice(0, 60000);\n\n// Gemini reads PDFs (text and scanned pages) and photos natively, so each file goes in as it is.\nconst parts = [];\nfiles.forEach((f, i) => {\n  parts.push({ text: `Agreement file ${i + 1} of ${files.length}: ${f.name || \"page\"}` });\n  parts.push({ inline_data: { mime_type: f.mediaType || \"application/pdf\", data: f.data } });\n});\n\nconst instructions = [\n  \"You are reading a residential rent agreement (or leave and licence agreement) from India on behalf of the tenant.\",\n  \"Extract the facts and the clauses that matter when the tenant moves out and asks for the security deposit back.\",\n  ...(files.length\n    ? [`The ${files.length === 1 ? \"file above is\" : files.length + \" files above are\"} the agreement${files.length > 1 ? \", in order\" : \"\"}. Scans and photos may be tilted, faint or partly in Hindi or another Indian language; read them carefully and answer in English.`]\n    : []),\n  ...(pasted ? ['AGREEMENT TEXT PASTED BY THE TENANT\\n\"\"\"\\n' + pasted + '\\n\"\"\"'] : []),\n  \"\",\n  \"RULES\",\n  \"- isAgreement is false if this is not a rent or leave and licence agreement for a home. Then leave every other field null or empty.\",\n  \"- Dates as YYYY-MM-DD. Amounts in rupees as plain numbers (1.5 lakh = 150000; 30k = 30000).\",\n  \"- refundDays: days after the tenant vacates or hands over the keys within which the deposit must be returned. 0 if it is returned at the time of vacating or handing over. null if not stated.\",\n  \"- maintenance, lockIn and noticePeriod are short phrases in plain English, like \\\"11 months\\\" or \\\"1 month's written notice\\\".\",\n  \"- clauses: up to 12, those that matter for the deposit first: deposit refund, painting, deductions, repairs, lock-in, notice period. topic is one of: \" + TOPICS.join(\", \") + \".\",\n  \"- quote is copied exactly from the agreement, at most 300 characters (translate to English only if the original is not in English). clause is the clause number if shown, otherwise an empty string. plain is one plain sentence for the tenant.\",\n  \"- watchOut lists up to 5 terms that could cost the tenant money at move-out, such as a fixed painting charge, a long lock-in or a deduction for normal wear and tear. Empty if none.\",\n  \"- pageCount is the total number of agreement pages you were given.\",\n  \"- Use null for anything the agreement does not state. Never guess or invent.\",\n].join(\"\\n\");\nparts.push({ text: instructions });\n\n// Gemini's response schema uses OpenAPI-style uppercase types; nullable marks facts the agreement may not state.\nconst text = { type: \"STRING\", nullable: true };\nconst number = { type: \"NUMBER\", nullable: true };\nconst factKeys = [\"ownerName\", \"tenantName\", \"address\", \"agreementDate\", \"startDate\", \"endDate\", \"monthlyRent\", \"securityDeposit\", \"maintenance\", \"lockIn\", \"noticePeriod\", \"refundDays\"];\nconst responseSchema = {\n  type: \"OBJECT\",\n  properties: {\n    isAgreement: { type: \"BOOLEAN\" },\n    ownerName: text,\n    tenantName: text,\n    address: text,\n    agreementDate: text,\n    startDate: text,\n    endDate: text,\n    monthlyRent: number,\n    securityDeposit: number,\n    maintenance: text,\n    lockIn: text,\n    noticePeriod: text,\n    refundDays: { type: \"INTEGER\", nullable: true },\n    clauses: {\n      type: \"ARRAY\",\n      items: {\n        type: \"OBJECT\",\n        properties: {\n          topic: { type: \"STRING\", enum: TOPICS },\n          clause: { type: \"STRING\" },\n          quote: { type: \"STRING\" },\n          plain: { type: \"STRING\" },\n        },\n        required: [\"topic\", \"clause\", \"quote\", \"plain\"],\n        propertyOrdering: [\"topic\", \"clause\", \"quote\", \"plain\"],\n      },\n    },\n    watchOut: { type: \"ARRAY\", items: { type: \"STRING\" } },\n    pageCount: { type: \"INTEGER\" },\n  },\n  required: [\"isAgreement\", ...factKeys, \"clauses\", \"watchOut\", \"pageCount\"],\n  propertyOrdering: [\"isAgreement\", ...factKeys, \"clauses\", \"watchOut\", \"pageCount\"],\n};\n\nreturn [\n  {\n    json: {\n      model: MODEL,\n      request: {\n        contents: [{ role: \"user\", parts }],\n        generationConfig: {\n          responseMimeType: \"application/json\",\n          responseSchema,\n          maxOutputTokens: 32768,\n          temperature: 0.1,\n          ...(THINKING === \"DEFAULT\" ? {} : { thinkingConfig: { thinkingLevel: THINKING } }),\n        },\n      },\n    },\n  },\n];\n"
+      },
+      "name": "Build Gemini request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://generativelanguage.googleapis.com/v1beta/models/' + $json.model + ':generateContent' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.request) }}",
+        "options": {
+          "timeout": 280000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "name": "Call Gemini API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        480,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Shared by every \"Read Gemini reply\" Code node (build.mjs prepends it).\n// Turns Gemini's generateContent response into { text } or a ProofNest failure.\n\n// eslint-disable-next-line @typescript-eslint/no-unused-vars -- called by the parse code that follows it\nfunction readGemini(res) {\n  let body = res.body || {};\n  if (typeof body === \"string\") {\n    try {\n      body = JSON.parse(body);\n    } catch {\n      body = {};\n    }\n  }\n  const usage = body.usageMetadata\n    ? { input_tokens: body.usageMetadata.promptTokenCount || 0, output_tokens: (body.usageMetadata.candidatesTokenCount || 0) + (body.usageMetadata.thoughtsTokenCount || 0) }\n    : null;\n  const model = body.modelVersion || \"\";\n  const fail = (error, code) => ({ failure: { ok: false, code, error, model, usage } });\n\n  if (res.statusCode && res.statusCode !== 200) {\n    if (res.statusCode === 429) return fail(\"The free AI quota is used up for now. Wait a minute and try again, or try again tomorrow.\", \"busy\");\n    if (res.statusCode === 503) return fail(\"The AI service is busy. Try again in a minute.\", \"busy\");\n    const message = (body.error && body.error.message) || \"The Gemini API returned status \" + res.statusCode + \".\";\n    return fail(message, \"api_error\");\n  }\n  if (body.promptFeedback && body.promptFeedback.blockReason) return fail(\"The AI declined this request. Edit the text and try again.\", \"refused\");\n\n  const candidate = (body.candidates || [])[0];\n  if (!candidate) return fail(\"No answer came back. Try again.\", \"empty\");\n  const reason = candidate.finishReason || \"STOP\";\n  if ([\"SAFETY\", \"PROHIBITED_CONTENT\", \"BLOCKLIST\", \"SPII\", \"RECITATION\", \"IMAGE_SAFETY\"].includes(reason)) {\n    return fail(\"The AI declined this request. Edit the text and try again.\", \"refused\");\n  }\n  const text = ((candidate.content && candidate.content.parts) || [])\n    .filter((part) => typeof part.text === \"string\" && !part.thought)\n    .map((part) => part.text)\n    .join(\"\")\n    .trim();\n  if (!text) return fail(reason === \"MAX_TOKENS\" ? \"The answer was cut short. Paste fewer charges at a time.\" : \"No answer came back. Try again.\", reason === \"MAX_TOKENS\" ? \"truncated\" : \"empty\");\n  return { text, truncated: reason === \"MAX_TOKENS\", model, usage };\n}\n\n// n8n Code node \"Read Gemini reply\" in the proofnest-agreement workflow (readGemini is prepended from gemini-reply.js).\n// Input: the HTTP Request node's full response ({ statusCode, body, headers }), with \"Never error\" on.\n// Output: what the Respond to Webhook node returns to ProofNest, which checks and cleans every field itself.\n\nconst reply = readGemini($input.first().json);\nif (reply.failure) return [{ json: reply.failure }];\nif (reply.truncated) return [{ json: { ok: false, code: \"truncated\", error: \"The answer was cut short. Try fewer pages at a time.\", model: reply.model, usage: reply.usage } }];\n\nlet parsed = null;\ntry {\n  // Strip a Markdown code fence in case the model wraps its JSON in one.\n  parsed = JSON.parse(reply.text.replace(/^```(?:json)?\\s*|\\s*```$/g, \"\"));\n} catch {\n  parsed = null;\n}\nif (!parsed || typeof parsed !== \"object\" || Array.isArray(parsed)) {\n  return [{ json: { ok: false, code: \"invalid_json\", error: \"The AI's answer couldn't be read. Try again.\", model: reply.model, usage: reply.usage } }];\n}\nreturn [{ json: { ok: true, agreement: parsed, model: reply.model, usage: reply.usage } }];\n"
+      },
+      "name": "Read Gemini reply",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "name": "Respond to ProofNest",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        960,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "ProofNest webhook": {
+      "main": [
+        [
+          {
+            "node": "Build Gemini request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Gemini request": {
+      "main": [
+        [
+          {
+            "node": "Call Gemini API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Gemini API": {
+      "main": [
+        [
+          {
+            "node": "Read Gemini reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Gemini reply": {
+      "main": [
+        [
+          {
+            "node": "Respond to ProofNest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}

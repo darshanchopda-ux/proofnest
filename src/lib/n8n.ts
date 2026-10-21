@@ -19,7 +19,7 @@ const MIN_RETRY_MS = 90_000;
  * Network failures and non-JSON replies come back as { ok: false } rather than throwing.
  * A "busy" reply is retried once if there's time.
  */
-export async function callWorkflow<T extends { ok: true }>(path: "proofnest-check" | "proofnest-letter", payload: unknown): Promise<T | WorkflowFailure> {
+export async function callWorkflow<T extends { ok: true }>(path: "proofnest-check" | "proofnest-letter" | "proofnest-agreement", payload: unknown): Promise<T | WorkflowFailure> {
   if (!n8nConfigured()) return { ok: false, code: "not_configured", error: "AI checking isn't connected yet." };
   const url = `${process.env.N8N_WEBHOOK_BASE!.replace(/\/+$/, "")}/${path}`;
   const body = JSON.stringify(payload);

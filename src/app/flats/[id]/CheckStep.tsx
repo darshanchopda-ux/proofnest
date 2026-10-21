@@ -30,9 +30,10 @@ type Props = {
   onStop: () => void;
   onZoom: (photo: PhotoDTO) => void;
   onGoRecord: () => void;
+  onOpenAgreement: () => void;
 };
 
-export function CheckStep({ flat, setFlat, patchFlat, check, screenshot, setScreenshot, onRun, onStop, onZoom, onGoRecord }: Props) {
+export function CheckStep({ flat, setFlat, patchFlat, check, screenshot, setScreenshot, onRun, onStop, onZoom, onGoRecord, onOpenAgreement }: Props) {
   const toast = useToast();
   const [msg, setMsg] = useState(0);
   const [item, setItem] = useState("");
@@ -135,6 +136,14 @@ export function CheckStep({ flat, setFlat, patchFlat, check, screenshot, setScre
             <div><Icon name="check" />{plural(flat.photos.length, "move-in photo")} with room and condition{real.length ? ` (up to 8 shown to the AI)` : ""}</div>
             <div><Icon name="check" />{plural(noted, "photo note")}</div>
             <div><Icon name="check" />{flat.evidenceNotes.trim() ? "Your other evidence (WhatsApp, emails)" : "No other evidence yet"}</div>
+            {flat.agreement ? (
+              <div><Icon name="check" />Your rent agreement ({plural(flat.agreement.clauses.length, "clause")})</div>
+            ) : (
+              <div>
+                <Icon name="plus" />
+                <button className="linkbtn" type="button" onClick={onOpenAgreement} style={{ fontSize: "inherit", padding: 0 }}>Add your rent agreement</button>
+              </div>
+            )}
           </div>
           <button className="linkbtn" type="button" onClick={onGoRecord} style={{ justifySelf: "start", fontSize: ".84rem" }}>
             Improve your record <Icon name="arrow" small />

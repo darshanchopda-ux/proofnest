@@ -1,8 +1,8 @@
 import "server-only";
 import { and, asc, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { agreements, charges, flats, photos, type Charge, type Flat, type Photo } from "@/db/schema";
-import type { ChargeDTO, FlatDTO, PhotoDTO } from "@/lib/types";
+import { agreements, charges, flats, photos, type Agreement, type Charge, type Flat, type Photo } from "@/db/schema";
+import type { AgreementDTO, ChargeDTO, FlatDTO, PhotoDTO } from "@/lib/types";
 import { isUuid } from "@/lib/dal";
 
 export const EXAMPLE_CONTENT_TYPE = "example";
@@ -53,6 +53,19 @@ export function toChargeDTO(c: Charge): ChargeDTO {
   };
 }
 
+export function toAgreementDTO(a: Agreement): AgreementDTO {
+  return {
+    files: a.files.map((f, i) => ({ name: f.name, contentType: f.contentType, sizeBytes: f.sizeBytes, href: `/api/flats/${a.flatId}/agreement/files/${i}` })),
+    facts: a.facts,
+    clauses: a.clauses,
+    flags: a.flags,
+    pages: a.pages,
+    pasted: a.text.length > 0,
+    readAt: a.readAt ? a.readAt.toISOString() : null,
+    reviewed: a.dismissed,
+  };
+}
+
 export async function listCharges(flatId: string): Promise<ChargeDTO[]> {
   const rows = await db.select().from(charges).where(eq(charges.flatId, flatId)).orderBy(asc(charges.position), asc(charges.createdAt));
   return rows.map(toChargeDTO);
@@ -63,7 +76,7 @@ export async function getFlatDTO(userId: string, flatId: string): Promise<FlatDT
   if (!flat) return null;
   const [photoRows, agreementRows, chargeList] = await Promise.all([
     db.select().from(photos).where(eq(photos.flatId, flat.id)).orderBy(asc(photos.n)),
-    db.select({ flatId: agreements.flatId }).from(agreements).where(eq(agreements.flatId, flat.id)).limit(1),
+    db.select().from(agreements).where(eq(agreements.flatId, flat.id)).limit(1),
     listCharges(flat.id),
   ]);
   return {
@@ -83,7 +96,7 @@ export async function getFlatDTO(userId: string, flatId: string): Promise<FlatDT
     deductionsText: flat.deductionsText,
     letter: flat.letter,
     photos: photoRows.map(toPhotoDTO),
-    hasAgreement: agreementRows.length > 0,
+    agreement: agreementRows[0] ? toAgreementDTO(agreementRows[0]) : null,
     charges: chargeList,
     analyzedAt: flat.analyzedAt ? flat.analyzedAt.toISOString() : null,
   };

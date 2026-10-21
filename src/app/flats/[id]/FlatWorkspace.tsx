@@ -8,11 +8,16 @@ import { recordPhoto, updateFlat } from "@/app/flats/actions";
 import { coverage, isMoveOut, nextAction, stepStates, summaryText, totals, type NextButton } from "@/lib/guidance";
 import { depositMonths, fmtDate, money, plural, refundInfo } from "@/lib/format";
 import { exifDate, safeFileName, sha256Hex, toJpeg, UPLOADABLE } from "@/lib/photo-client";
-import { CONDITIONS, type ChargeDTO, type FlatDTO, type FlatPatch, type PhotoDTO, type Step } from "@/lib/types";
+import { CONDITIONS, type AgreementDTO, type ChargeDTO, type FlatDTO, type FlatPatch, type PhotoDTO, type Step } from "@/lib/types";
+import { AgreementDrawer, type AgreementReadState } from "./AgreementDrawer";
 import { CheckStep, type CheckState } from "./CheckStep";
 import { DetailsDrawer } from "./DetailsDrawer";
 import { LetterStep } from "./LetterStep";
 import { RecordStep } from "./RecordStep";
+
+/** PDFs go to the AI as they are, so they must fit in one request (see AGREEMENT_MAX_BASE64 in lib/ai.ts). */
+const MAX_AGREEMENT_PDF_BYTES = 9 * 1024 * 1024;
+const isPdf = (f: File) => f.type === "application/pdf" || /\.pdf$/i.test(f.name);
 
 const STEPS: { id: Step; n: number; when: string; title: string }[] = [
   { id: "record", n: 1, when: "At move-in", title: "Move-in record" },
@@ -31,6 +36,10 @@ export function FlatWorkspace({ initialFlat, initialStep }: { initialFlat: FlatD
   const [check, setCheck] = useState<CheckState>({ running: false, status: "", error: false, replay: 0 });
   const [screenshot, setScreenshot] = useState<File | null>(null);
   const checkCtl = useRef<AbortController | null>(null);
+  const [agreementOpen, setAgreementOpen] = useState(false);
+  const [agRead, setAgRead] = useState<AgreementReadState>({ phase: "idle", status: "", error: false, canRetry: false });
+  const agCtl = useRef<AbortController | null>(null);
+  const lastAgInput = useRef<{ files: File[]; text: string } | null>(null);
   const toast = useToast();
 
   const goStep = useCallback((next: Step) => {
@@ -161,6 +170,68 @@ export function FlatWorkspace({ initialFlat, initialStep }: { initialFlat: FlatD
     }
   }, [check.running, flat.deductionsText, flat.id, goStep, screenshot, step, toast]);
 
+  /** Uploads the agreement's files to private storage, then has the AI read them through the agreement route. */
+  const readAgreement = useCallback(
+    async (picked: File[], text: string) => {
+      if (agCtl.current) return;
+      const files = picked
+        .filter((f) => isPdf(f) || f.type.startsWith("image/") || /\.(heic|heif)$/i.test(f.name))
+        .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+      const fail = (status: string, canRetry = false) => setAgRead({ phase: "idle", status, error: true, canRetry });
+      if (picked.length && !files.length) return fail("Pick a PDF, or photos of the agreement's pages.");
+      if (!files.length && !text.trim()) return;
+      if (files.length > 15) return fail("Upload at most 15 files: a PDF, or one photo per page.");
+      const pdfBytes = files.filter(isPdf).reduce((n, f) => n + f.size, 0);
+      if (pdfBytes > MAX_AGREEMENT_PDF_BYTES) {
+        return fail(`That PDF is ${(pdfBytes / 1024 / 1024).toFixed(1)} MB. ProofNest reads PDFs up to 9 MB. Upload photos of the pages instead.`);
+      }
+
+      lastAgInput.current = { files, text };
+      const ctl = new AbortController();
+      agCtl.current = ctl;
+      try {
+        const uploaded = [];
+        for (const [i, file] of files.entries()) {
+          setAgRead({ phase: "uploading", status: files.length > 1 ? `Uploading file ${i + 1} of ${files.length}…` : "Uploading your agreement…", error: false, canRetry: false });
+          const pdf = isPdf(file);
+          const blob: Blob = pdf || (UPLOADABLE.test(file.type) && file.size < 8 * 1024 * 1024) ? file : await toJpeg(file, 2400, 0.85);
+          const contentType = pdf ? "application/pdf" : blob.type || "image/jpeg";
+          const ext = pdf ? "pdf" : contentType === "image/png" ? "png" : contentType === "image/webp" ? "webp" : "jpg";
+          const result = await upload(`flats/${flat.id}/agreement/${safeFileName(file.name)}.${ext}`, blob, {
+            access: "private",
+            handleUploadUrl: "/api/upload",
+            clientPayload: JSON.stringify({ flatId: flat.id, kind: "agreement" }),
+            contentType,
+            abortSignal: ctl.signal,
+          });
+          uploaded.push({ pathname: result.pathname, name: file.name.slice(0, 80), contentType, sizeBytes: blob.size });
+        }
+        setAgRead({ phase: "reading", status: "", error: false, canRetry: false });
+        const res = await fetch(`/api/flats/${flat.id}/agreement`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ files: uploaded, text }),
+          signal: ctl.signal,
+        });
+        const json = (await res.json().catch(() => null)) as { ok: boolean; agreement?: AgreementDTO; error?: string; code?: string } | null;
+        if (!json?.ok || !json.agreement) return fail(json?.error || "Something went wrong. Try again.", json?.code !== "not_agreement" && json?.code !== "too_large");
+        const agreement = json.agreement;
+        setFlat((f) => ({ ...f, agreement }));
+        setAgRead({ phase: "idle", status: "", error: false, canRetry: false });
+        toast("Agreement read. Check what the AI found.");
+      } catch (e) {
+        const stopped = e instanceof DOMException && e.name === "AbortError";
+        const message = e instanceof Error ? e.message : "";
+        if (stopped) setAgRead({ phase: "idle", status: "Stopped.", error: false, canRetry: false });
+        else if (/storage isn't connected|503|client token/i.test(message)) fail("File storage isn't connected yet, so the agreement can't be saved.");
+        else fail("Couldn't reach ProofNest. Check your connection.", true);
+      } finally {
+        agCtl.current = null;
+      }
+    },
+    [flat.id, toast],
+  );
+
   const copyLetter = useCallback(async () => {
     if (!flat.letter.trim()) {
       toast("Write or build the letter first.", "bad");
@@ -180,6 +251,7 @@ export function FlatWorkspace({ initialFlat, initialStep }: { initialFlat: FlatD
       if (e.key === "Escape") {
         setZoom(null);
         setDrawerOpen(false);
+        setAgreementOpen(false);
       }
     };
     window.addEventListener("keydown", onKey);
@@ -188,7 +260,7 @@ export function FlatWorkspace({ initialFlat, initialStep }: { initialFlat: FlatD
 
   return (
     <div className="wrap case">
-      <CaseHead flat={flat} onEdit={() => setDrawerOpen(true)} />
+      <CaseHead flat={flat} reading={agRead.phase !== "idle"} onEdit={() => setDrawerOpen(true)} onAgreement={() => setAgreementOpen(true)} />
       <Stepper flat={flat} step={step} onStep={goStep} />
       <NextCard flat={flat} step={step} onStep={goStep} onFiles={addPhotos} onCopy={copySummary} onRunCheck={runCheck} onCopyLetter={copyLetter} running={check.running} />
       <section className="panel enter" key={animKey} role="region" aria-label={STEPS.find((s) => s.id === step)?.title}>
@@ -216,17 +288,30 @@ export function FlatWorkspace({ initialFlat, initialStep }: { initialFlat: FlatD
             onStop={() => checkCtl.current?.abort()}
             onZoom={setZoom}
             onGoRecord={() => goStep("record")}
+            onOpenAgreement={() => setAgreementOpen(true)}
           />
         )}
         {step === "letter" && <LetterStep flat={flat} patchFlat={patchFlat} onStep={goStep} onCopy={copyLetter} />}
       </section>
       {drawerOpen && <DetailsDrawer flat={flat} patchFlat={patchFlat} onClose={() => setDrawerOpen(false)} />}
+      {agreementOpen && (
+        <AgreementDrawer
+          flat={flat}
+          setFlat={setFlat}
+          patchFlat={patchFlat}
+          read={agRead}
+          onRead={readAgreement}
+          onRetry={() => lastAgInput.current && readAgreement(lastAgInput.current.files, lastAgInput.current.text)}
+          onStop={() => agCtl.current?.abort()}
+          onClose={() => setAgreementOpen(false)}
+        />
+      )}
       {zoom && <Lightbox photo={zoom} onClose={() => setZoom(null)} />}
     </div>
   );
 }
 
-function CaseHead({ flat, onEdit }: { flat: FlatDTO; onEdit: () => void }) {
+function CaseHead({ flat, reading, onEdit, onAgreement }: { flat: FlatDTO; reading: boolean; onEdit: () => void; onAgreement: () => void }) {
   const refund = refundInfo(flat.keysHandedOver, flat.refundDays);
   const meta = [
     flat.ownerName && `Owner: ${flat.ownerName}`,
@@ -272,6 +357,19 @@ function CaseHead({ flat, onEdit }: { flat: FlatDTO; onEdit: () => void }) {
           </div>
         )}
         {refundBox}
+        <button className="kv kv-btn" type="button" onClick={onAgreement}>
+          <span>Rent agreement</span>
+          {reading ? (
+            <small>Reading…</small>
+          ) : flat.agreement ? (
+            <>
+              <b className="agok"><Icon name="check" small />Read</b>
+              <small className="muted-small">{plural(flat.agreement.clauses.length, "clause")}</small>
+            </>
+          ) : (
+            <small><Icon name="plus" small />Upload</small>
+          )}
+        </button>
         <button className="btn ghost small ch-edit" type="button" onClick={onEdit}>
           <Icon name="edit" small />Edit details
         </button>

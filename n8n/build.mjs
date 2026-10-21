@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const code = (name) => readFileSync(join(here, "src", name), "utf8");
-// The two "Read Gemini reply" nodes share readGemini(); n8n Code nodes can't import, so it is inlined.
+// The "Read Gemini reply" nodes share readGemini(); n8n Code nodes can't import, so it is inlined.
 const parseCode = (name) => code("gemini-reply.js") + "\n" + code(name);
 
 function workflow({ name, path, buildFile, parseFile }) {
@@ -80,6 +80,7 @@ mkdirSync(out, { recursive: true });
 const flows = [
   { file: "proofnest-check.json", name: "ProofNest · check deductions", path: "proofnest-check", buildFile: "check-build.js", parseFile: "check-parse.js" },
   { file: "proofnest-letter.json", name: "ProofNest · refund letter", path: "proofnest-letter", buildFile: "letter-build.js", parseFile: "letter-parse.js" },
+  { file: "proofnest-agreement.json", name: "ProofNest · read agreement", path: "proofnest-agreement", buildFile: "agreement-build.js", parseFile: "agreement-parse.js" },
 ];
 for (const f of flows) {
   writeFileSync(join(out, f.file), JSON.stringify(workflow(f), null, 2) + "\n");

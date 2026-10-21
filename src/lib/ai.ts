@@ -3,14 +3,18 @@ import { get } from "@vercel/blob";
 import { and, eq, gt, sql } from "drizzle-orm";
 import sharp from "sharp";
 import { db } from "@/db";
-import { agreements, aiRuns, type Flat, type Photo } from "@/db/schema";
-import { fmtDate } from "@/lib/format";
+import { agreements, aiRuns, type AgreementClause, type AgreementFacts, type AgreementFile, type Flat, type Photo } from "@/db/schema";
+import { fmtDate, money } from "@/lib/format";
 import { EXAMPLE_CONTENT_TYPE } from "@/lib/flats";
 import type { WorkflowUsage } from "@/lib/n8n";
 
 /** Most photos sent to the AI per check. Each is resized to 1568px on its long edge. */
 export const MAX_IMAGES = 8;
 const RUNS_PER_HOUR = 15;
+/** Most files in one agreement read: a PDF, or one photo per page. */
+export const AGREEMENT_MAX_FILES = 15;
+/** Most base64 characters of agreement files per read, to stay under n8n's default 16 MB request limit. */
+export const AGREEMENT_MAX_BASE64 = 12_000_000;
 
 /** Optional model and thinking overrides passed to the n8n workflows (unset: the workflows' own defaults). */
 export function aiOptions(): { model?: string; thinkingLevel?: string } {
@@ -79,6 +83,62 @@ export async function imageFileForAI(file: File): Promise<{ mediaType: string; d
   }
 }
 
+/** Reads an uploaded agreement file for the AI: PDFs as they are, photos shrunk to 2000px. Returns null if it can't be read. */
+export async function agreementFileForAI(f: AgreementFile): Promise<{ name: string; mediaType: string; data: string } | null> {
+  try {
+    const blob = await get(f.pathname, { access: "private" });
+    if (!blob || blob.statusCode !== 200) return null;
+    const original = Buffer.from(await new Response(blob.stream).arrayBuffer());
+    if (blob.blob.contentType === "application/pdf") return { name: f.name, mediaType: "application/pdf", data: original.toString("base64") };
+    const small = await sharp(original).rotate().resize({ width: 2000, height: 2000, fit: "inside", withoutEnlargement: true }).jpeg({ quality: 82 }).toBuffer();
+    return { name: f.name, mediaType: "image/jpeg", data: small.toString("base64") };
+  } catch (e) {
+    console.error("Couldn't prepare agreement file for the AI", f.pathname, e);
+    return null;
+  }
+}
+
+const CLAUSE_TOPICS = ["Deposit refund", "Painting", "Deductions", "Repairs and maintenance", "Lock-in", "Notice period", "Rent increase", "Other"];
+
+/** Checks and cleans what the AI read from an agreement. Anything missing or malformed becomes empty. */
+export function normalizeAgreement(raw: unknown): { isAgreement: boolean; facts: AgreementFacts; clauses: AgreementClause[]; flags: string[]; pageCount: number } {
+  const d = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  const str = (v: unknown, max = 200) => (typeof v === "string" ? v.trim().slice(0, max) : "");
+  const num = (v: unknown) => {
+    if (v == null || v === "") return null;
+    const x = typeof v === "number" ? v : Number(String(v).replace(/[^0-9.]/g, ""));
+    return Number.isFinite(x) && x >= 0 && x < 1e10 ? x : null;
+  };
+  // Real calendar dates only, so a misread "2024-02-30" never reaches a date column.
+  const day = (v: unknown) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) && new Date(v + "T00:00:00Z").toISOString().startsWith(v) ? v : "");
+  const refund = num(d.refundDays);
+  const clauses = (Array.isArray(d.clauses) ? d.clauses : []).slice(0, 12).map((c): AgreementClause => {
+    const x = (c && typeof c === "object" ? c : {}) as Record<string, unknown>;
+    const topic = str(x.topic, 40);
+    return { topic: CLAUSE_TOPICS.includes(topic) ? topic : "Other", clause: str(x.clause, 20), quote: str(x.quote, 400), plain: str(x.plain, 240) };
+  });
+  return {
+    isAgreement: d.isAgreement !== false,
+    facts: {
+      owner: str(d.ownerName, 120),
+      tenant: str(d.tenantName, 120),
+      address: str(d.address),
+      agreementDate: day(d.agreementDate),
+      start: day(d.startDate),
+      end: day(d.endDate),
+      rent: num(d.monthlyRent),
+      deposit: num(d.securityDeposit),
+      maintenance: str(d.maintenance, 160),
+      lockIn: str(d.lockIn, 160),
+      notice: str(d.noticePeriod, 160),
+      refundDays: refund != null && refund <= 365 ? Math.round(refund) : null,
+    },
+    clauses: clauses.filter((c) => c.quote || c.plain),
+    flags: (Array.isArray(d.watchOut) ? d.watchOut : []).slice(0, 5).map((x) => str(x)).filter(Boolean),
+    pageCount: Math.round(num(d.pageCount) ?? 0),
+  };
+}
+
 /** The agreement's key terms as plain text for the prompts, or null when none was uploaded. */
 export async function agreementSummary(flatId: string): Promise<string | null> {
   const [ag] = await db.select().from(agreements).where(eq(agreements.flatId, flatId)).limit(1);
@@ -86,9 +146,13 @@ export async function agreementSummary(flatId: string): Promise<string | null> {
   const f = ag.facts;
   const lines: string[] = [];
   if (f.agreementDate) lines.push("Agreement date: " + f.agreementDate);
+  if (f.start || f.end) lines.push(`Period: ${f.start || "?"} to ${f.end || "?"}`);
+  if (f.rent != null) lines.push("Rent in agreement: " + money(f.rent));
+  if (f.deposit != null) lines.push("Deposit in agreement: " + money(f.deposit));
   if (f.refundDays != null) lines.push("Deposit refund: " + (f.refundDays === 0 ? "at the time of vacating or handover" : `${f.refundDays} days after handover`));
   if (f.lockIn) lines.push("Lock-in: " + f.lockIn);
   if (f.notice) lines.push("Notice period: " + f.notice);
+  if (f.maintenance) lines.push("Maintenance: " + f.maintenance);
   for (const k of ag.clauses) lines.push(`- ${k.topic}${k.clause ? ` (clause ${k.clause})` : ""}: ${k.quote ? `"${k.quote}"` : k.plain}`);
   return lines.join("\n") || null;
 }

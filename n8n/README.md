@@ -1,11 +1,12 @@
 # ProofNest n8n workflows
 
-Two workflows do ProofNest's AI work. ProofNest's server calls them; they call Google's Gemini API (`gemini-3.8-flash`, free tier) and send the result back.
+Three workflows do ProofNest's AI work. ProofNest's server calls them; they call Google's Gemini API (`gemini-3.8-flash`, free tier) and send the result back.
 
 | Workflow file | Webhook path | Called by | Does |
 |---|---|---|---|
 | `workflows/proofnest-check.json` | `proofnest-check` | `POST /api/flats/[id]/check` | Labels every charge in the owner's deductions using the move-in photos, notes and agreement |
 | `workflows/proofnest-letter.json` | `proofnest-letter` | `POST /api/flats/[id]/letter` | Writes the refund letter from the tenant's decisions |
+| `workflows/proofnest-agreement.json` | `proofnest-agreement` | `POST /api/flats/[id]/agreement` | Reads the rent agreement (PDF, page photos or pasted text) and returns its key facts, clauses and terms to watch |
 
 Each workflow: **ProofNest webhook** (checks a shared secret) → **Build Gemini request** → **Call Gemini API** → **Read Gemini reply** → **Respond to ProofNest**.
 
@@ -14,9 +15,9 @@ Each workflow: **ProofNest webhook** (checks a shared secret) → **Build Gemini
 1. **Create two credentials** (Overview → Credentials → Create credential → *Header Auth*):
    - **ProofNest shared secret**: Name `x-proofnest-secret`, Value = the `N8N_WEBHOOK_SECRET` from ProofNest's `.env.local`.
    - **Gemini API key**: Name `x-goog-api-key`, Value = a free key from aistudio.google.com → *Get API key*. Under *Allowed HTTP Request Domains*, choose *Specific domains* and enter `generativelanguage.googleapis.com`.
-2. **Import both workflows**: Workflows → Create → ⋯ menu → *Import from file* → pick `workflows/proofnest-check.json`. Repeat for `proofnest-letter.json`.
+2. **Import the workflows**: Workflows → Create → ⋯ menu → *Import from file* → pick `workflows/proofnest-check.json`. Repeat for `proofnest-letter.json` and `proofnest-agreement.json`.
 3. In each workflow, open **ProofNest webhook** and choose the *ProofNest shared secret* credential. Open **Call Gemini API** and choose the *Gemini API key* credential. Save.
-4. **Publish** both workflows (button at the top right). Only published workflows answer on the production URL.
+4. **Publish** each workflow (button at the top right). Only published workflows answer on the production URL.
 5. Copy the webhook's **Production URL** base, everything before `/proofnest-check`, for example `https://pgp27-n8n.mesaschool.co.in/webhook`. Send it to whoever runs ProofNest's Vercel settings, or set it yourself:
 
    ```bash
@@ -51,3 +52,4 @@ Then re-import the changed workflow in n8n, or paste the new code into its Code 
 - Privacy: on the free tier, Google may use what you send, including photos, to improve its products. The paid tier doesn't. ProofNest says this next to the AI buttons.
 - HTTP timeout 280 seconds. ProofNest's routes allow 300.
 - ProofNest sends at most 8 photos per check, each resized to 1568px, plus an optional screenshot of the owner's message.
+- Agreement reads send PDFs as they are (Gemini reads text and scanned pages) and page photos resized to 2000px, at most 15 files and about 12 MB of base64 per read, under n8n's default 16 MB request limit. ProofNest checks every field Gemini returns before saving it.

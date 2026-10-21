@@ -53,8 +53,9 @@ npm run db:migrate
 - `src/app/api/photos/[id]`: streams a private photo to its owner
 - `src/lib/photo-client.ts`: EXIF capture time and SHA-256 fingerprint, computed in the browser
 - `src/app/api/flats/[id]/check` and `/letter`: call the n8n workflows; photos are resized to 1568px with sharp first
-- `n8n/`: the two workflows, their Code node sources and tests
+- `src/app/api/flats/[id]/agreement`: reads an uploaded rent agreement (PDF or page photos, or pasted text) through n8n and saves its key terms; `/agreement/files/[n]` serves its files privately
+- `n8n/`: the three workflows, their Code node sources and tests
 
 ## Status
 
-Phase 1 and 2 are in: sign-in, flats, rooms, photo upload with capture time and fingerprint, details, WhatsApp summary, the AI deduction check with per-charge decisions, and the refund letter (AI or template). Rent agreement reading comes next.
+Phase 1 to 3 are in: sign-in, flats, rooms, photo upload with capture time and fingerprint, details, WhatsApp summary, the AI deduction check with per-charge decisions, the refund letter (AI or template), and rent agreement reading (key facts, clauses, terms to watch, and suggested flat details), whose clauses feed the check and the letter.

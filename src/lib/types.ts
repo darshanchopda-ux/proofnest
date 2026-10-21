@@ -1,3 +1,5 @@
+import type { AgreementClause, AgreementFacts } from "@/db/schema";
+
 export type Condition = "good" | "worn" | "damaged";
 export type Stage = "movein" | "moveout";
 export type Step = "record" | "check" | "letter";
@@ -68,9 +70,30 @@ export type FlatDTO = {
   deductionsText: string;
   letter: string;
   photos: PhotoDTO[];
-  hasAgreement: boolean;
+  agreement: AgreementDTO | null;
   charges: ChargeDTO[];
   analyzedAt: string | null;
+};
+
+export type AgreementFileDTO = {
+  name: string;
+  contentType: string;
+  sizeBytes: number;
+  /** Same-origin URL that streams the private file to its owner. */
+  href: string;
+};
+
+export type AgreementDTO = {
+  files: AgreementFileDTO[];
+  facts: AgreementFacts;
+  clauses: AgreementClause[];
+  flags: string[];
+  pages: number;
+  /** True when the agreement was pasted as text rather than uploaded. */
+  pasted: boolean;
+  readAt: string | null;
+  /** True once the tenant has applied or set aside the suggested flat details. */
+  reviewed: boolean;
 };
 
 /** Fields the details panel may edit. */

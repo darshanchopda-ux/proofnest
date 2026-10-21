@@ -1,10 +1,10 @@
 "use server";
 
-import { del } from "@vercel/blob";
 import { and, eq, sql } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
 import { agreements, charges, flats, photos } from "@/db/schema";
+import { removeBlobs } from "@/lib/blobs";
 import { isUuid, requireUser } from "@/lib/dal";
 import { EXAMPLE_CONTENT_TYPE, getOwnedFlat, toChargeDTO, toPhotoDTO } from "@/lib/flats";
 import type { ChargeDTO, Condition, Decision, FlatPatch, NewFlatInput, PhotoDTO } from "@/lib/types";
@@ -30,15 +30,6 @@ function dayCount(value: unknown): number | null {
   if (value === null || value === undefined || value === "") return null;
   const n = Math.round(Number(value));
   return Number.isFinite(n) && n >= 0 && n <= 365 ? n : null;
-}
-async function removeBlobs(pathnames: string[]) {
-  const real = pathnames.filter(Boolean);
-  if (!real.length || !process.env.BLOB_READ_WRITE_TOKEN) return;
-  try {
-    await del(real);
-  } catch (e) {
-    console.error("Blob delete failed", e);
-  }
 }
 
 export async function createFlat(input: NewFlatInput): Promise<Result> {
@@ -107,6 +98,40 @@ export async function createExampleFlat(): Promise<void> {
     example(3, "Hall", "worn", "Wall paint faded with old marks near the switchboard", 11),
     example(4, "Bathroom", "good", "Tap, shower and geyser working", 14),
   ]);
+  await db.insert(agreements).values({
+    flatId: row.id,
+    facts: {
+      owner: "Mr. R. Sharma",
+      address: "Flat 302, Sunrise Apartments, HSR Layout, Bengaluru",
+      agreementDate: "2024-02-25",
+      start: "2024-03-01",
+      rent: 30000,
+      deposit: 150000,
+      maintenance: "Included in rent",
+      lockIn: "6 months",
+      notice: "1 month",
+      refundDays: 0,
+    },
+    clauses: [
+      {
+        topic: "Deposit refund",
+        clause: "4",
+        quote: "The security deposit shall be refunded to the Licensee at the time of vacating the premises, after deducting arrears of rent and utility bills, if any.",
+        plain: "The deposit is due the day you hand over the keys, minus only unpaid rent and bills.",
+      },
+      {
+        topic: "Repairs and maintenance",
+        clause: "9",
+        quote: "The Licensee shall bear the cost of repairing any damage caused by the Licensee, normal wear and tear excepted.",
+        plain: "You pay only for damage you caused, not for normal wear and tear.",
+      },
+      { topic: "Painting", clause: "", quote: "", plain: "The agreement does not mention any painting charge." },
+      { topic: "Notice period", clause: "12", quote: "Either party may terminate this agreement by giving one month's notice in writing.", plain: "One month's written notice from either side." },
+    ],
+    pages: 6,
+    readAt: new Date(),
+    dismissed: true,
+  });
   redirect(`/flats/${row.id}?step=record`);
 }
 
@@ -277,6 +302,25 @@ export async function deleteCharge(flatId: string, chargeId: string): Promise<Re
   const flat = await getOwnedFlat(user.id, flatId);
   if (!flat || !isUuid(chargeId)) return NOT_FOUND;
   await db.delete(charges).where(and(eq(charges.id, chargeId), eq(charges.flatId, flat.id)));
+  return { ok: true, data: null };
+}
+
+/** Deletes the flat's rent agreement and its files. */
+export async function removeAgreement(flatId: string): Promise<Result> {
+  const user = await requireUser();
+  const flat = await getOwnedFlat(user.id, flatId);
+  if (!flat) return NOT_FOUND;
+  const [row] = await db.delete(agreements).where(eq(agreements.flatId, flat.id)).returning({ files: agreements.files });
+  if (row) await removeBlobs(row.files.map((f) => f.pathname));
+  return { ok: true, data: null };
+}
+
+/** Records that the tenant has applied or set aside the flat details suggested from their agreement. */
+export async function markAgreementReviewed(flatId: string): Promise<Result> {
+  const user = await requireUser();
+  const flat = await getOwnedFlat(user.id, flatId);
+  if (!flat) return NOT_FOUND;
+  await db.update(agreements).set({ dismissed: true }).where(eq(agreements.flatId, flat.id));
   return { ok: true, data: null };
 }
 
