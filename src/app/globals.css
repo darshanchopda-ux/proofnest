@@ -122,13 +122,16 @@ footer.foot { padding-block: 28px 34px; font-size: .8rem; color: var(--muted); b
 .welcome h1 { font-size: clamp(2.3rem, 5vw, 3.5rem); line-height: 1.08; margin: 10px 0 18px; }
 .welcome .lede { font-size: 1.1rem; color: var(--muted); max-width: 46ch; }
 .w-q { margin-top: 34px; font-weight: 600; }
-.choices { display: grid; margin: 10px 0 20px; border-top: 1px solid var(--rule-strong); }
-.choice { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 16px; align-items: center; padding: 16px 6px; border-bottom: 1px solid var(--rule-strong); color: var(--ink); text-decoration: none; transition: background-color .15s; }
-.choice:hover { background: var(--sheet); }
-.choice b { font-family: var(--display); font-size: 1.3rem; font-weight: 600; display: block; }
+/* the two ways in: index cards with a clear button-like action, so it's obvious where to click */
+.choices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin: 12px 0 20px; }
+.choice { display: grid; grid-template-rows: auto 1fr auto; gap: 6px; padding: 18px 18px 16px; background: var(--sheet); border: 1px solid var(--rule-strong); border-top: 4px solid var(--accent); border-radius: 3px; color: var(--ink); text-decoration: none; box-shadow: 0 1px 0 var(--rule); transition: border-color .15s, box-shadow .15s, transform .15s var(--ease); }
+.choice:hover { border-color: var(--accent); box-shadow: var(--lift); transform: translateY(-2px); }
+.choice b { font-family: var(--display); font-size: 1.35rem; font-weight: 600; display: block; }
 .choice .sub { color: var(--muted); font-size: .92rem; }
-.choice > .ic { color: var(--muted); }
-.choice:hover > .ic { color: var(--ink); }
+.choice .go { justify-self: start; display: inline-flex; align-items: center; gap: 8px; margin-top: 8px; padding: 9px 14px; border-radius: 3px; background: var(--accent); color: var(--on-accent); font: 600 .9rem/1 var(--body); }
+.choice:hover .go { background: color-mix(in srgb, var(--accent) 86%, var(--ink)); }
+.choice:hover .go .ic { transform: translateX(3px); }
+.choice .go .ic { transition: transform .15s var(--ease); }
 
 .casefile { position: relative; margin-top: 18px; }
 .casefile .cf-tab { display: inline-block; padding: 7px 16px 6px; background: var(--manila); border: 1px solid var(--rule-strong); border-bottom: 0; border-radius: 6px 6px 0 0; font-family: var(--display); font-size: .95rem; }
@@ -440,6 +443,7 @@ footer.foot { padding-block: 28px 34px; font-size: .8rem; color: var(--muted); b
 }
 @media (max-width: 900px) {
   .welcome { grid-template-columns: minmax(0, 1fr); gap: 28px; padding-top: 32px; }
+  .welcome > div:first-child { max-width: 640px; }
   .two { grid-template-columns: minmax(0, 1fr); }
   .summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .summary div:nth-child(3) { border-left: 0; padding-left: 0; }
@@ -447,6 +451,7 @@ footer.foot { padding-block: 28px 34px; font-size: .8rem; color: var(--muted); b
 }
 @media (max-width: 640px) {
   .usermenu .who { display: none; }
+  .choices { grid-template-columns: minmax(0, 1fr); }
   .stepper { padding-left: 0; gap: 3px; }
   .stp { flex: 1 1 0; padding: 8px 9px 7px; gap: 6px; }
   .stx em, .stx .long { display: none; }

@@ -14,14 +14,12 @@ const LEDGER: { item: string; amount: string; verdict?: { label: string; cls: st
   { item: "Electricity bill, Sept", amount: "₹1,850" },
 ];
 
-function Choice({ href, title, sub }: { href: string; title: string; sub: string }) {
+function Choice({ href, title, sub, go }: { href: string; title: string; sub: string; go: string }) {
   return (
     <Link className="choice" href={href}>
-      <span>
-        <b>{title}</b>
-        <span className="sub">{sub}</span>
-      </span>
-      <Icon name="arrow" />
+      <b>{title}</b>
+      <span className="sub">{sub}</span>
+      <span className="go">{go}<Icon name="arrow" small /></span>
     </Link>
   );
 }
@@ -39,8 +37,8 @@ export default function Home() {
           </p>
           <p className="w-q">Where are you right now?</p>
           <div className="choices">
-            <Choice href="/flats/new?stage=movein" title="I'm moving in" sub="Photograph each room before you unpack." />
-            <Choice href="/flats/new?stage=moveout" title="I'm moving out" sub="Check the owner's deductions and ask for your refund." />
+            <Choice href="/flats/new?stage=movein" title="I'm moving in" sub="Photograph each room before you unpack." go="Start my record" />
+            <Choice href="/flats/new?stage=moveout" title="I'm moving out" sub="Check the owner's deductions and ask for your refund." go="Check deductions" />
           </div>
           <form action={createExampleFlat}>
             <button className="linkbtn" type="submit">Or look through an example flat</button>
@@ -48,7 +46,7 @@ export default function Home() {
         </div>
 
         <div className="casefile" aria-label="Example: an owner's deductions, checked">
-          <span className="cf-tab">Flat 302, Sunrise Apartments</span>
+          <span className="cf-tab">Example · Flat 302, Sunrise Apartments</span>
           <div className="cf-sheet">
             <p className="cf-title">
               Owner&apos;s deductions
