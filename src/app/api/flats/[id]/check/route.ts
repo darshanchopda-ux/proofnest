@@ -2,7 +2,7 @@ import { and, asc, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { charges, flats, photos } from "@/db/schema";
-import { agreementSummary, aiOptions, flatFacts, imageFileForAI, logRun, overRunLimit, photoForAI, photoMeta, pickPhotos } from "@/lib/ai";
+import { agreementSummary, aiOptions, finishRun, flatFacts, imageFileForAI, overRunLimit, photoForAI, photoMeta, pickPhotos, startRun } from "@/lib/ai";
 import { getCurrentUser } from "@/lib/dal";
 import { getOwnedFlat, listCharges } from "@/lib/flats";
 import { evidenceWithOwnerReview } from "@/lib/owner-review";
@@ -28,14 +28,19 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const flat = await getOwnedFlat(user.id, id);
   if (!flat) return NextResponse.json({ ok: false, error: "That flat wasn't found in your account." }, { status: 404 });
 
-  const form = await request.formData();
-  const deductions = String(form.get("deductions") ?? "").trim().slice(0, 10000);
+  let form: FormData;
+  try {
+    form = await request.formData();
+  } catch {
+    return NextResponse.json({ ok: false, error: "That request couldn't be read. Try again." }, { status: 400 });
+  }
+  const deductions = String(form.get("deductions") ?? "").trim().slice(0, 8000);
   const shot = form.get("screenshot");
   const screenshotFile = shot instanceof File && shot.size > 0 ? shot : null;
   if (!deductions && !screenshotFile) {
     return NextResponse.json({ ok: false, error: "Paste the owner's deductions first, or add a screenshot of them." }, { status: 400 });
   }
-  if (await overRunLimit(flat.id)) {
+  if (await overRunLimit(user.id)) {
     return NextResponse.json({ ok: false, error: "That's a lot of checks in the last hour. Wait a little, then try again." }, { status: 429 });
   }
 
@@ -48,8 +53,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     screenshotFile ? imageFileForAI(screenshotFile) : Promise.resolve(null),
     agreementSummary(flat.id),
   ]);
+  if (screenshotFile && !screenshot && !deductions) {
+    return NextResponse.json({ ok: false, error: "That screenshot couldn't be read. Paste the deductions as text instead." }, { status: 400 });
+  }
 
-  const started = Date.now();
+  const run = await startRun(flat.id, "check");
   const reply = await callWorkflow<CheckReply>("proofnest-check", {
     ...aiOptions(),
     flat: flatFacts(flat),
@@ -60,7 +68,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     screenshot,
     agreement,
   });
-  await logRun(flat.id, "check", started, reply.ok ? { ok: true, model: reply.model, usage: reply.usage } : { ok: false, error: reply.error, model: reply.model, usage: reply.usage });
+  await finishRun(run, reply.ok ? { ok: true, model: reply.model, usage: reply.usage } : { ok: false, error: reply.error, model: reply.model, usage: reply.usage });
   if (!reply.ok) {
     const status = reply.code === "not_configured" ? 503 : reply.code === "busy" ? 429 : 502;
     return NextResponse.json({ ok: false, code: reply.code, error: reply.error }, { status });
@@ -77,7 +85,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       flatId: flat.id,
       position: i,
       item: String(c.item || "Charge").slice(0, 160),
-      amount: (Number.isFinite(amount) && amount >= 0 ? amount : 0).toFixed(2),
+      // numeric(12,2) holds up to ₹99,99,99,999.99; anything larger is a misread number, not a charge.
+      amount: (Number.isFinite(amount) && amount >= 0 && amount < 1e10 ? amount : 0).toFixed(2),
       aiVerdict: verdict,
       decision: verdict,
       photoNs,
@@ -86,14 +95,26 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       source: "ai",
     };
   });
-  await db.delete(charges).where(and(eq(charges.flatId, flat.id), eq(charges.source, "ai")));
-  if (rows.length) await db.insert(charges).values(rows);
-  await db.update(flats).set({ analyzedAt: new Date() }).where(eq(flats.id, flat.id));
+  if (!rows.length) {
+    return NextResponse.json({ ok: false, error: "The AI didn't find any charges in that message. Check it lists the deductions, then try again." }, { status: 422 });
+  }
+  // Replace the old AI verdicts in one transaction, and keep hand-added charges after the new ones.
+  const manual = await db
+    .select({ id: charges.id })
+    .from(charges)
+    .where(and(eq(charges.flatId, flat.id), eq(charges.source, "manual")))
+    .orderBy(asc(charges.position), asc(charges.createdAt));
+  await db.batch([
+    db.delete(charges).where(and(eq(charges.flatId, flat.id), eq(charges.source, "ai"))),
+    db.insert(charges).values(rows),
+    db.update(flats).set({ analyzedAt: new Date() }).where(eq(flats.id, flat.id)),
+    ...manual.map((m, i) => db.update(charges).set({ position: rows.length + i }).where(eq(charges.id, m.id))),
+  ]);
 
   return NextResponse.json({
     ok: true,
     charges: await listCharges(flat.id),
-    photosShown: chosen.map((p) => p.n),
+    photosShown: chosen.filter((_, i) => images[i]).map((p) => p.n),
     analyzedAt: new Date().toISOString(),
   });
 }

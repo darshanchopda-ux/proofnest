@@ -24,7 +24,8 @@ export function templateLetter(flat: FlatDTO): string {
   lines.push(
     `I vacated ${flat.address || "the flat"}${flat.keysHandedOver ? ` and handed over the keys on ${fmtDate(flat.keysHandedOver)}` : ""}. ` +
       `You have proposed deductions of ${money(t.all)} from my security deposit${deposit ? ` of ${money(deposit)}` : ""}. ` +
-      `I do not agree with ${money(t.dispute)} of these deductions, for the reasons below. My move-in photos with dates are attached.`,
+      (t.dispute ? `I do not agree with ${money(t.dispute)} of these deductions, for the reasons below. ` : "") +
+      "My move-in photos with dates are attached.",
     "",
   );
 

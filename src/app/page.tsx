@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { Icon } from "@/components/Icon";
 import { createExampleFlat } from "@/app/flats/actions";
+import { ExampleButton } from "./ExampleButton";
 import { getCurrentUser } from "@/lib/dal";
 import { listFlats } from "@/lib/flats";
 import { fmtDate } from "@/lib/format";
@@ -32,7 +33,7 @@ export default function Home() {
             <Choice href="/flats/new?stage=moveout" title="I'm moving out" sub="Check the owner's deductions and ask for your refund." go="Check deductions" />
           </div>
           <form action={createExampleFlat} className="example-link">
-            <button className="linkbtn" type="submit">Or look through an example flat</button>
+            <ExampleButton />
           </form>
         </div>
 

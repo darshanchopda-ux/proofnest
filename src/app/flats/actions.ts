@@ -1,10 +1,10 @@
 "use server";
 
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, isNotNull, sql } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
 import { agreements, charges, flats, ownerReviews, photos } from "@/db/schema";
-import { removeBlobs } from "@/lib/blobs";
+import { removeBlobs, removeFolder } from "@/lib/blobs";
 import { isUuid, requireUser } from "@/lib/dal";
 import { EXAMPLE_CONTENT_TYPE, getOwnedFlat, toChargeDTO, toPhotoDTO } from "@/lib/flats";
 import { isStale, latestReview, newReviewToken, recordHash, snapshotPhotos, toOwnerReviewDTO } from "@/lib/owner-review";
@@ -19,12 +19,14 @@ function clean(value: unknown, max: number): string {
 }
 function isoDay(value: unknown): string | null {
   const v = String(value ?? "");
-  return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null;
+  // Real calendar dates only: Postgres rejects "2024-02-30", which would make the whole save fail.
+  return /^\d{4}-\d{2}-\d{2}$/.test(v) && new Date(v + "T00:00:00Z").toISOString().startsWith(v) ? v : null;
 }
 function rupees(value: unknown): string | null {
-  const v = String(value ?? "").replace(/[^0-9.]/g, "");
-  if (!v) return null;
-  const n = Number(v);
+  const raw = String(value ?? "").replace(/[₹,\s]/g, "");
+  if (!raw) return null;
+  // A plain number first (so "1e5" is 100000, as the number field means); otherwise keep just the digits ("Rs. 30000").
+  const n = Number.isFinite(Number(raw)) ? Number(raw) : Number(raw.replace(/[^0-9.]/g, "") || NaN);
   return Number.isFinite(n) && n >= 0 && n < 1e10 ? n.toFixed(2) : null;
 }
 function dayCount(value: unknown): number | null {
@@ -153,13 +155,20 @@ export async function updateFlat(flatId: string, patch: FlatPatch): Promise<Resu
   if ("keysHandedOver" in patch) {
     values.keysHandedOver = isoDay(patch.keysHandedOver);
     if (values.keysHandedOver) values.stage = "moveout";
+    else {
+      // Clearing the handover date undoes "moving out", unless move-out work has already started.
+      const deductions = "deductionsText" in patch ? clean(patch.deductionsText, 8000) : flat.deductionsText;
+      const [row] = await db.select({ n: sql<number>`count(*)::int` }).from(charges).where(eq(charges.flatId, flat.id));
+      if (!deductions && !row?.n) values.stage = "movein";
+    }
   }
   if ("monthlyRent" in patch) values.monthlyRent = rupees(patch.monthlyRent);
   if ("deposit" in patch) values.deposit = rupees(patch.deposit);
   if ("refundDays" in patch) values.refundDays = dayCount(patch.refundDays);
   if ("evidenceNotes" in patch) values.evidenceNotes = clean(patch.evidenceNotes, 8000);
   if ("deductionsText" in patch) {
-    values.deductionsText = clean(patch.deductionsText, 10000);
+    // The check sends at most 8,000 characters to the AI, so don't keep more than it reads.
+    values.deductionsText = clean(patch.deductionsText, 8000);
     if (values.deductionsText) values.stage = "moveout";
   }
   if ("letter" in patch) values.letter = String(patch.letter ?? "").slice(0, 20000);
@@ -213,7 +222,9 @@ export async function recordPhoto(flatId: string, input: RecordPhotoInput): Prom
   if (!flat) return NOT_FOUND;
 
   const pathname = String(input.pathname ?? "");
-  if (!pathname.startsWith(`flats/${flat.id}/`) || pathname.includes("..")) return { ok: false, error: "That upload doesn't belong to this flat." };
+  if (!pathname.startsWith(`flats/${flat.id}/photos/`) || pathname.includes("..")) return { ok: false, error: "That upload doesn't belong to this flat." };
+  const [existing] = await db.select({ id: photos.id }).from(photos).where(and(eq(photos.flatId, flat.id), eq(photos.blobPathname, pathname))).limit(1);
+  if (existing) return { ok: false, error: "That photo is already in your record." };
   if (!/^image\//.test(String(input.contentType))) return { ok: false, error: "Only photos can be added to rooms." };
   const room = clean(input.room, 40);
   if (!room) return { ok: false, error: "Pick a room for the photo." };
@@ -229,7 +240,9 @@ export async function recordPhoto(flatId: string, input: RecordPhotoInput): Prom
     .where(and(eq(flats.id, flat.id), eq(flats.userId, user.id)))
     .returning({ next: flats.nextPhotoN });
 
-  const takenAt = typeof input.takenAt === "number" && Number.isFinite(input.takenAt) ? new Date(input.takenAt) : null;
+  // Only plausible capture times: cameras without a clock report the year 0, and a bad value would throw below.
+  const takenMs = typeof input.takenAt === "number" ? input.takenAt : NaN;
+  const takenAt = Number.isFinite(takenMs) && takenMs >= Date.UTC(2000, 0, 1) && takenMs <= Date.now() + 86_400_000 ? new Date(takenMs) : null;
   const [photo] = await db
     .insert(photos)
     .values({
@@ -241,7 +254,7 @@ export async function recordPhoto(flatId: string, input: RecordPhotoInput): Prom
       sizeBytes: Math.max(0, Math.round(Number(input.sizeBytes) || 0)),
       sha256: /^[0-9a-f]{64}$/.test(input.sha256) ? input.sha256 : "",
       takenAt,
-      takenFrom: input.takenFrom === "camera" ? "camera" : "file",
+      takenFrom: takenAt && input.takenFrom === "camera" ? "camera" : "file",
     })
     .returning();
   return { ok: true, data: toPhotoDTO(photo) };
@@ -263,6 +276,13 @@ export async function deletePhoto(flatId: string, photoId: string): Promise<Resu
   const user = await requireUser();
   const flat = await getOwnedFlat(user.id, flatId);
   if (!flat || !isUuid(photoId)) return NOT_FOUND;
+  // A photo the owner has already answered about stays, so the record they confirmed keeps all its photos.
+  const [answered] = await db
+    .select({ id: ownerReviews.id })
+    .from(ownerReviews)
+    .where(and(eq(ownerReviews.flatId, flat.id), isNotNull(ownerReviews.respondedAt), sql`${ownerReviews.photos} @> ${JSON.stringify([{ id: photoId }])}::jsonb`))
+    .limit(1);
+  if (answered) return { ok: false, error: "Your owner has already answered about this photo, so it stays in your record." };
   const [photo] = await db.delete(photos).where(and(eq(photos.id, photoId), eq(photos.flatId, flat.id))).returning();
   if (photo && photo.contentType !== EXAMPLE_CONTENT_TYPE) await removeBlobs([photo.blobPathname]);
   return { ok: true, data: null };
@@ -355,11 +375,8 @@ export async function deleteFlat(flatId: string): Promise<Result> {
   const user = await requireUser();
   const flat = await getOwnedFlat(user.id, flatId);
   if (!flat) return NOT_FOUND;
-  const [photoRows, agreementRows] = await Promise.all([
-    db.select({ pathname: photos.blobPathname }).from(photos).where(eq(photos.flatId, flat.id)),
-    db.select({ files: agreements.files }).from(agreements).where(eq(agreements.flatId, flat.id)),
-  ]);
-  await removeBlobs([...photoRows.map((p) => p.pathname), ...agreementRows.flatMap((a) => a.files.map((f) => f.pathname))]);
+  // Delete the rows first, then every file in the flat's folder, including uploads that were never recorded.
   await db.delete(flats).where(and(eq(flats.id, flat.id), eq(flats.userId, user.id)));
+  await removeFolder(`flats/${flat.id}/`);
   redirect("/");
 }

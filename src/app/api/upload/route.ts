@@ -11,7 +11,12 @@ export async function POST(request: Request): Promise<NextResponse> {
   if (!process.env.BLOB_READ_WRITE_TOKEN) {
     return NextResponse.json({ error: "Photo storage isn't connected yet." }, { status: 503 });
   }
-  const body = (await request.json()) as HandleUploadBody;
+  let body: HandleUploadBody;
+  try {
+    body = (await request.json()) as HandleUploadBody;
+  } catch {
+    return NextResponse.json({ error: "That upload request couldn't be read." }, { status: 400 });
+  }
   try {
     const json = await handleUpload({
       body,

@@ -7,8 +7,15 @@ export type AuthFormState = { error: string } | null;
 
 function safeNext(value: FormDataEntryValue | null): string {
   const next = typeof value === "string" ? value : "";
-  // Only allow same-site paths so the form can't be used as an open redirect.
-  return next.startsWith("/") && !next.startsWith("//") ? next : "/";
+  // Only allow same-site paths so the form can't be used as an open redirect. Parsing it the way the browser
+  // will catches tricks like "/\\evil.example" or a tab inside "//", which a prefix check lets through.
+  const base = "http://proofnest.invalid";
+  try {
+    const url = new URL(next, base);
+    return next.startsWith("/") && url.origin === base ? url.pathname + url.search + url.hash : "/";
+  } catch {
+    return "/";
+  }
 }
 
 export async function signInWithEmail(_prev: AuthFormState, formData: FormData): Promise<AuthFormState> {

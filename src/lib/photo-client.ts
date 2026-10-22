@@ -55,7 +55,9 @@ export function exifDate(buf: ArrayBuffer): number | null {
           }
         }
         const m = /^(\d{4}):(\d{2}):(\d{2}) (\d{2}):(\d{2}):(\d{2})/.exec(dt);
-        return m ? new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]).getTime() : null;
+        if (!m || +m[1] < 2000) return null;
+        const when = new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]).getTime();
+        return Number.isFinite(when) && when <= Date.now() + 86_400_000 ? when : null;
       }
       if (marker === 0xffda) return null;
       off += 2 + size;

@@ -2,7 +2,7 @@ import { asc, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { flats, photos } from "@/db/schema";
-import { agreementSummary, aiOptions, flatFacts, logRun, overRunLimit, photoMeta } from "@/lib/ai";
+import { agreementSummary, aiOptions, finishRun, flatFacts, overRunLimit, photoMeta, startRun } from "@/lib/ai";
 import { getCurrentUser } from "@/lib/dal";
 import { getOwnedFlat, listCharges } from "@/lib/flats";
 import { fmtDate } from "@/lib/format";
@@ -22,14 +22,14 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
 
   const chargeList = await listCharges(flat.id);
   if (!chargeList.length) return NextResponse.json({ ok: false, error: "Check your deductions in step 2 first." }, { status: 400 });
-  if (await overRunLimit(flat.id)) {
+  if (await overRunLimit(user.id)) {
     return NextResponse.json({ ok: false, error: "That's a lot of requests in the last hour. Wait a little, then try again." }, { status: 429 });
   }
 
   const cited = new Set(chargeList.flatMap((c) => c.photoNs));
   const allPhotos = await db.select().from(photos).where(eq(photos.flatId, flat.id)).orderBy(asc(photos.n));
 
-  const started = Date.now();
+  const run = await startRun(flat.id, "letter");
   const reply = await callWorkflow<LetterReply>("proofnest-letter", {
     ...aiOptions(),
     flat: flatFacts(flat),
@@ -39,7 +39,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     evidence: await evidenceWithOwnerReview(flat.id, flat.evidenceNotes),
     agreement: await agreementSummary(flat.id),
   });
-  await logRun(flat.id, "letter", started, reply.ok ? { ok: true, model: reply.model, usage: reply.usage } : { ok: false, error: reply.error, model: reply.model, usage: reply.usage });
+  await finishRun(run, reply.ok ? { ok: true, model: reply.model, usage: reply.usage } : { ok: false, error: reply.error, model: reply.model, usage: reply.usage });
   if (!reply.ok) {
     const status = reply.code === "not_configured" ? 503 : reply.code === "busy" ? 429 : 502;
     return NextResponse.json({ ok: false, code: reply.code, error: reply.error }, { status });

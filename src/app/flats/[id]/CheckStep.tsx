@@ -38,6 +38,7 @@ export function CheckStep({ flat, setFlat, patchFlat, check, screenshot, setScre
   const [item, setItem] = useState("");
   const [amount, setAmount] = useState("");
   const [fresh, setFresh] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
 
   useEffect(() => {
     if (!check.running) return;
@@ -51,26 +52,54 @@ export function CheckStep({ flat, setFlat, patchFlat, check, screenshot, setScre
   const t = totals(flat.charges);
 
   async function decide(c: ChargeDTO, decision: Decision) {
-    setFlat((f) => ({ ...f, charges: f.charges.map((x) => (x.id === c.id ? { ...x, decision } : x)) }));
-    const result = await setChargeDecision(flat.id, c.id, decision);
-    if (!result.ok) toast(result.error, "bad");
+    const before = c.decision;
+    const put = (d: Decision) => setFlat((f) => ({ ...f, charges: f.charges.map((x) => (x.id === c.id ? { ...x, decision: d } : x)) }));
+    put(decision);
+    let error = "";
+    try {
+      const result = await setChargeDecision(flat.id, c.id, decision);
+      if (!result.ok) error = result.error;
+    } catch {
+      error = "Couldn't save your decision. Check your connection and try again.";
+    }
+    if (error) {
+      put(before);
+      toast(error, "bad");
+    }
   }
 
-  async function remove(c: ChargeDTO) {
-    const result = await deleteCharge(flat.id, c.id);
-    if (!result.ok) return toast(result.error, "bad");
+  /** Returns false when the charge couldn't be deleted, so its row can come back. */
+  async function remove(c: ChargeDTO): Promise<boolean> {
+    try {
+      const result = await deleteCharge(flat.id, c.id);
+      if (!result.ok) {
+        toast(result.error, "bad");
+        return false;
+      }
+    } catch {
+      toast("Couldn't remove the charge. Check your connection and try again.", "bad");
+      return false;
+    }
     setFlat((f) => ({ ...f, charges: f.charges.filter((x) => x.id !== c.id) }));
+    return true;
   }
 
   async function add(e: FormEvent) {
     e.preventDefault();
-    if (!item.trim()) return;
-    const result = await addCharge(flat.id, item, Number(amount));
-    if (!result.ok) return toast(result.error, "bad");
-    setFlat((f) => ({ ...f, stage: "moveout", charges: [...f.charges, result.data] }));
-    setFresh(result.data.id);
-    setItem("");
-    setAmount("");
+    if (!item.trim() || adding) return;
+    setAdding(true);
+    try {
+      const result = await addCharge(flat.id, item, Number(amount));
+      if (!result.ok) return toast(result.error, "bad");
+      setFlat((f) => ({ ...f, stage: "moveout", charges: [...f.charges, result.data] }));
+      setFresh(result.data.id);
+      setItem("");
+      setAmount("");
+    } catch {
+      toast("Couldn't add the charge. Check your connection and try again.", "bad");
+    } finally {
+      setAdding(false);
+    }
   }
 
   return (
@@ -88,6 +117,7 @@ export function CheckStep({ flat, setFlat, patchFlat, check, screenshot, setScre
           <label className="sr" htmlFor="f-deductions">Owner&apos;s deductions</label>
           <textarea
             id="f-deductions"
+            maxLength={8000}
             value={flat.deductionsText}
             onChange={(e) => patchFlat({ deductionsText: e.target.value })}
             placeholder={"Painting charges  ₹18,000\nDeep cleaning  ₹4,500\nKitchen tile repair  ₹6,000"}
@@ -195,7 +225,7 @@ export function CheckStep({ flat, setFlat, patchFlat, check, screenshot, setScre
         <input id="ac-item" type="text" placeholder="Add a charge by hand, e.g. Sofa cleaning" maxLength={160} value={item} onChange={(e) => setItem(e.target.value)} />
         <label className="sr" htmlFor="ac-amt">Amount in rupees</label>
         <input id="ac-amt" type="number" placeholder="Amount (₹)" min={0} step={1} inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value)} />
-        <button className="btn small ghost" type="submit"><Icon name="plus" small />Add charge</button>
+        <button className="btn small ghost" type="submit" disabled={adding}><Icon name="plus" small />{adding ? "Adding…" : "Add charge"}</button>
       </form>
     </>
   );
@@ -215,7 +245,7 @@ function ChargeRow({
   fresh: boolean;
   photoByN: Map<number, PhotoDTO>;
   onDecide: (c: ChargeDTO, d: Decision) => void;
-  onRemove: (c: ChargeDTO) => void;
+  onRemove: (c: ChargeDTO) => Promise<boolean>;
   onZoom: (p: PhotoDTO) => void;
 }) {
   const [armed, setArmed] = useState(false);
@@ -259,7 +289,9 @@ function ChargeRow({
               return;
             }
             setLeaving(true);
-            setTimeout(() => onRemove(c), 200);
+            setTimeout(async () => {
+              if (!(await onRemove(c))) setLeaving(false);
+            }, 200);
           }}
         >
           {armed ? "Sure?" : <Icon name="trash" small />}

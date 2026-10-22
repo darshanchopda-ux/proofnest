@@ -44,6 +44,7 @@ export function NewFlatWizard() {
           ref={first ? firstInput : undefined}
           id={`wz-${key}`}
           type={type}
+          maxLength={type === "text" ? (key === "address" ? 200 : 120) : undefined}
           value={data[key]}
           onChange={set(key)}
           placeholder={placeholder}

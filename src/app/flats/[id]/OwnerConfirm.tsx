@@ -12,6 +12,9 @@ export function OwnerConfirm({ flat, setFlat }: { flat: FlatDTO; setFlat: Dispat
   const toast = useToast();
   const [busy, setBusy] = useState(false);
   const r = flat.ownerReview;
+  const a = flat.ownerAnswer;
+  const earlier = a && r && a.token !== r.token ? a : null;
+  const span = (ns: number[]) => (ns.length > 1 ? `P${ns[0]}–P${ns[ns.length - 1]}` : `P${ns[0]}`);
   const path = r ? `/confirm/${r.token}` : "";
   // Built when clicked, since the full address is only known in the browser.
   const link = () => window.location.origin + path;
@@ -74,6 +77,12 @@ export function OwnerConfirm({ flat, setFlat }: { flat: FlatDTO; setFlat: Dispat
     body = (
       <>
         <p className="oc-state"><i className="dotp" />Waiting for {owner} to confirm {range}. Link made {fmtIST(r.createdAt)}.</p>
+        {earlier && (
+          <p>
+            {earlier.status === "confirmed" ? `${earlier.ownerName} already confirmed ${span(earlier.photoNs)}` : `${earlier.ownerName} answered about ${span(earlier.photoNs)}`} on{" "}
+            {fmtIST(earlier.respondedAt!)}. That still stands; this link covers your latest photos.
+          </p>
+        )}
         {sendButtons}
       </>
     );

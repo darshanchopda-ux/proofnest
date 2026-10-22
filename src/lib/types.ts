@@ -71,7 +71,10 @@ export type FlatDTO = {
   letter: string;
   photos: PhotoDTO[];
   agreement: AgreementDTO | null;
+  /** The latest owner link, answered or not: drives the tenant's "ask your owner" panel. */
   ownerReview: OwnerReviewDTO | null;
+  /** The owner's latest answer, which stays the evidence while a newer link waits. */
+  ownerAnswer: OwnerReviewDTO | null;
   charges: ChargeDTO[];
   analyzedAt: string | null;
 };

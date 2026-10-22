@@ -58,21 +58,21 @@ export function Report({ flat }: { flat: FlatDTO }) {
           </p>
         </header>
 
-        {flat.ownerReview?.respondedAt && (
-          <section className={`rp-owner ${flat.ownerReview.status}`}>
-            {flat.ownerReview.status === "confirmed" ? (
+        {flat.ownerAnswer?.respondedAt && (
+          <section className={`rp-owner ${flat.ownerAnswer.status}`}>
+            {flat.ownerAnswer.status === "confirmed" ? (
               <p>
-                <b>Confirmed by the owner.</b> {flat.ownerReview.ownerName} confirmed photos{" "}
-                {flat.ownerReview.photoNs.map((n) => `P${n}`).join(", ")} on {ist(flat.ownerReview.respondedAt)}, through a link the tenant
+                <b>Confirmed by the owner.</b> {flat.ownerAnswer.ownerName} confirmed photos{" "}
+                {flat.ownerAnswer.photoNs.map((n) => `P${n}`).join(", ")} on {ist(flat.ownerAnswer.respondedAt)}, through a link the tenant
                 sent them.
-                {flat.ownerReview.stale ? " Photos added or changed after that aren't covered." : ""}
+                {flat.ownerAnswer.stale ? " Photos added or changed after that aren't covered." : ""}
               </p>
             ) : (
               <p>
-                <b>The owner disagreed.</b> On {ist(flat.ownerReview.respondedAt)}, {flat.ownerReview.ownerName} wrote: &ldquo;{flat.ownerReview.ownerNote}&rdquo;
+                <b>The owner disagreed.</b> On {ist(flat.ownerAnswer.respondedAt)}, {flat.ownerAnswer.ownerName} wrote: &ldquo;{flat.ownerAnswer.ownerNote}&rdquo;
               </p>
             )}
-            <code>Record fingerprint (SHA-256) {flat.ownerReview.recordHash}</code>
+            <code>Record fingerprint (SHA-256) {flat.ownerAnswer.recordHash}</code>
           </section>
         )}
 

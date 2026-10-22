@@ -11,8 +11,9 @@ export function PrintButton({ fileName }: { fileName: string }) {
       onClick={() => {
         const title = document.title;
         document.title = fileName;
+        // Phones return from print() before the PDF is made, so restore the title only once printing is done.
+        window.addEventListener("afterprint", () => (document.title = title), { once: true });
         window.print();
-        document.title = title;
       }}
     >
       <Icon name="download" small />Save as PDF or print

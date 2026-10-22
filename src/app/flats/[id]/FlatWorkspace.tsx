@@ -6,7 +6,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Icon } from "@/components/Icon";
 import { useToast } from "@/components/Toast";
 import { recordPhoto, updateFlat } from "@/app/flats/actions";
-import { isMoveOut, nextAction, stepStates, summaryText, totals, type NextButton } from "@/lib/guidance";
+import { useDialogFocus } from "@/components/useDialogFocus";
+import { isMoveOut, nextAction, stepStates, summaryText, totals, withRecordChanged, type NextButton } from "@/lib/guidance";
 import { depositMonths, fmtDate, money, plural, refundInfo } from "@/lib/format";
 import { exifDate, safeFileName, sha256Hex, toJpeg, UPLOADABLE } from "@/lib/photo-client";
 import { CONDITIONS, type AgreementDTO, type ChargeDTO, type FlatDTO, type FlatPatch, type PhotoDTO, type Step } from "@/lib/types";
@@ -43,22 +44,41 @@ export function FlatWorkspace({ initialFlat, initialStep }: { initialFlat: FlatD
   const lastAgInput = useRef<{ files: File[]; text: string } | null>(null);
   const toast = useToast();
 
-  const goStep = useCallback((next: Step) => {
-    setStep(next);
-    setAnimKey((k) => k + 1);
-    window.history.replaceState(null, "", `?step=${next}`);
-  }, []);
+  const goStep = useCallback(
+    (next: Step) => {
+      // Clicking the step you're on does nothing, so it never wipes half-typed input or an AI run in progress.
+      if (next === step) return;
+      setStep(next);
+      setAnimKey((k) => k + 1);
+      window.history.replaceState(null, "", `?step=${next}`);
+    },
+    [step],
+  );
 
   /** Saves edits to the flat, keeping the screen in sync first so typing never waits on the network. */
   const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const patchFlat = useCallback(
     (patch: FlatPatch, delay = 600) => {
-      setFlat((f) => ({ ...f, ...patch, stage: patch.keysHandedOver || patch.deductionsText ? "moveout" : f.stage }));
+      setFlat((f) => ({
+        ...f,
+        ...patch,
+        // Clearing the handover date goes back to moving in, unless move-out work has started (the server agrees).
+        stage:
+          patch.keysHandedOver || patch.deductionsText
+            ? "moveout"
+            : "keysHandedOver" in patch && !f.deductionsText.trim() && !f.charges.length
+              ? "movein"
+              : f.stage,
+      }));
       const key = Object.keys(patch).join(",");
       clearTimeout(saveTimers.current[key]);
       saveTimers.current[key] = setTimeout(async () => {
-        const result = await updateFlat(flat.id, patch);
-        if (!result.ok) toast(result.error, "bad");
+        try {
+          const result = await updateFlat(flat.id, patch);
+          if (!result.ok) toast(result.error, "bad");
+        } catch {
+          toast("Couldn't save that change. Check your connection and try again.", "bad");
+        }
       }, delay);
     },
     [flat.id, toast],
@@ -75,6 +95,7 @@ export function FlatWorkspace({ initialFlat, initialStep }: { initialFlat: FlatD
       if (step !== "record") goStep("record");
       setPending((p) => ({ ...p, [room]: (p[room] ?? 0) + files.length }));
       let added = 0;
+      const failed: string[] = [];
       for (const file of files) {
         try {
           const buf = await file.arrayBuffer();
@@ -99,24 +120,35 @@ export function FlatWorkspace({ initialFlat, initialStep }: { initialFlat: FlatD
           if (!result.ok) throw new Error(result.error);
           added++;
           setFreshIds((s) => new Set(s).add(result.data.id));
-          setFlat((f) => ({
-            ...f,
-            rooms: f.rooms.includes(room) ? f.rooms : [...f.rooms, room],
-            photos: [...f.photos, result.data].sort((a, b) => a.n - b.n),
-          }));
+          setFlat((f) =>
+            withRecordChanged({
+              ...f,
+              rooms: f.rooms.includes(room) ? f.rooms : [...f.rooms, room],
+              photos: [...f.photos, result.data].sort((a, b) => a.n - b.n),
+            }),
+          );
         } catch (e) {
           const message = e instanceof Error ? e.message : "";
-          toast(
-            /storage isn't connected|503|client token/i.test(message)
-              ? "Photo storage isn't connected yet, so photos can't be saved."
-              : `Couldn't add ${file.name}. ${message}`.trim(),
-            "bad",
+          // The Blob library reports every upload refusal as "client token", so only name storage when it's really missing.
+          failed.push(
+            /storage isn't connected|503/i.test(message)
+              ? "photo storage isn't connected yet"
+              : /convert|decode|bitmap|source image/i.test(message)
+                ? `${file.name} isn't a format this browser can read (on iPhone, share it as JPEG)`
+                : /client token|failed to fetch|network/i.test(message)
+                  ? "the upload didn't go through; check your connection, or sign in again"
+                  : message || `${file.name} couldn't be added`,
           );
         } finally {
           setPending((p) => ({ ...p, [room]: Math.max(0, (p[room] ?? 1) - 1) }));
         }
       }
-      if (added) toast(added === 1 ? `Photo added to ${room}.` : `${added} photos added to ${room}.`);
+      // One message for the whole batch, so a failure isn't hidden behind the next toast.
+      if (failed.length) {
+        toast(`${added ? `${plural(added, "photo")} added to ${room}. ` : ""}${plural(failed.length, "photo")} couldn't be added: ${failed[0]}.`, "bad");
+      } else if (added) {
+        toast(added === 1 ? `Photo added to ${room}.` : `${added} photos added to ${room}.`);
+      }
     },
     [flat.id, goStep, step, toast],
   );
@@ -221,7 +253,8 @@ export function FlatWorkspace({ initialFlat, initialStep }: { initialFlat: FlatD
         setAgRead({ phase: "idle", status: "", error: false, canRetry: false });
         toast("Agreement read. Check what the AI found.");
       } catch (e) {
-        const stopped = e instanceof DOMException && e.name === "AbortError";
+        // Stopping mid-upload throws the Blob library's own abort error, not a DOMException.
+        const stopped = ctl.signal.aborted || (e instanceof DOMException && e.name === "AbortError");
         const message = e instanceof Error ? e.message : "";
         if (stopped) setAgRead({ phase: "idle", status: "Stopped.", error: false, canRetry: false });
         else if (/storage isn't connected|503|client token/i.test(message)) fail("File storage isn't connected yet, so the agreement can't be saved.");
@@ -255,8 +288,18 @@ export function FlatWorkspace({ initialFlat, initialStep }: { initialFlat: FlatD
         setAgreementOpen(false);
       }
     };
+    // A photo dropped outside a room would otherwise make the browser open the file and leave the app.
+    const keepFiles = (e: DragEvent) => {
+      if (e.dataTransfer?.types.includes("Files")) e.preventDefault();
+    };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("dragover", keepFiles);
+    window.addEventListener("drop", keepFiles);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("dragover", keepFiles);
+      window.removeEventListener("drop", keepFiles);
+    };
   }, []);
 
   return (
@@ -335,7 +378,8 @@ function CaseHead({ flat, reading, onEdit, onAgreement }: { flat: FlatDTO; readi
     flat.keysHandedOver && `Keys handed over ${fmtDate(flat.keysHandedOver)}`,
   ].filter(Boolean);
   const months = depositMonths(flat.monthlyRent, flat.deposit);
-  const review = flat.ownerReview;
+  const answer = flat.ownerAnswer;
+  const asked = flat.ownerReview?.status === "pending";
   let refundStat = null;
   if (refund) {
     const cls = refund.left < 0 ? "late" : refund.left <= 5 ? "soon" : "ok";
@@ -373,12 +417,12 @@ function CaseHead({ flat, reading, onEdit, onAgreement }: { flat: FlatDTO; readi
           </div>
         )}
         {refundStat}
-        {review && (
-          <div className={review.status === "confirmed" ? "ok" : review.status === "disputed" ? "soon" : ""}>
+        {(answer || asked) && (
+          <div className={answer?.status === "confirmed" ? "ok" : answer?.status === "disputed" ? "soon" : ""}>
             <dt>Owner</dt>
             <dd>
-              {review.status === "confirmed" ? "Confirmed" : review.status === "disputed" ? "Disagreed" : "Asked to confirm"}
-              <small>{review.respondedAt ? fmtDate(review.respondedAt) : "Waiting"}</small>
+              {answer ? (answer.status === "confirmed" ? "Confirmed" : "Disagreed") : "Asked to confirm"}
+              <small>{answer?.respondedAt ? fmtDate(answer.respondedAt) : "Waiting"}</small>
             </dd>
           </div>
         )}
@@ -515,11 +559,13 @@ function NextCard({
 }
 
 function Lightbox({ photo, onClose }: { photo: PhotoDTO; onClose: () => void }) {
+  const box = useRef<HTMLDivElement>(null);
+  useDialogFocus(box);
   return (
     <>
       <div className="overlay" onClick={onClose} />
       <div className="lightbox" onClick={(e) => e.target === e.currentTarget && onClose()}>
-        <div className="lb-in" role="dialog" aria-modal="true" aria-label={`Photo P${photo.n}`}>
+        <div className="lb-in" ref={box} role="dialog" aria-modal="true" aria-label={`Photo P${photo.n}`}>
           {photo.src ? (
             // eslint-disable-next-line @next/next/no-img-element -- private, auth-checked image route
             <img src={photo.src} alt={`Photo P${photo.n}, ${photo.room}`} />

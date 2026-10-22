@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { requireUser } from "@/lib/dal";
 import { getFlatDTO } from "@/lib/flats";
 import type { Step } from "@/lib/types";
+import { FreshOnNavigate } from "@/components/FreshOnNavigate";
 import { FlatWorkspace } from "./FlatWorkspace";
 
 type Props = {
@@ -24,5 +25,9 @@ async function FlatLoader({ params, searchParams }: Props) {
   const flat = await getFlatDTO(user.id, id);
   if (!flat) notFound();
   const step: Step = query.step === "check" || query.step === "letter" ? query.step : "record";
-  return <FlatWorkspace initialFlat={flat} initialStep={step} />;
+  return (
+    <FreshOnNavigate>
+      <FlatWorkspace initialFlat={flat} initialStep={step} />
+    </FreshOnNavigate>
+  );
 }

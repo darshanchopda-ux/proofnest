@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 
 import { Icon } from "@/components/Icon";
 import { useToast } from "@/components/Toast";
 import { markAgreementReviewed, removeAgreement } from "@/app/flats/actions";
+import { useDialogFocus } from "@/components/useDialogFocus";
 import { agreementProposals, refundText } from "@/lib/agreement";
 import { fmtDate, money, plural } from "@/lib/format";
 import type { FlatDTO, FlatPatch } from "@/lib/types";
@@ -31,6 +32,8 @@ type Props = {
 
 export function AgreementDrawer({ flat, setFlat, patchFlat, read, onRead, onRetry, onStop, onClose }: Props) {
   const closeRef = useRef<HTMLButtonElement>(null);
+  const panel = useRef<HTMLElement>(null);
+  useDialogFocus(panel);
   const busy = read.phase !== "idle";
 
   useEffect(() => {
@@ -40,7 +43,7 @@ export function AgreementDrawer({ flat, setFlat, patchFlat, read, onRead, onRetr
   return (
     <>
       <div className="overlay" onClick={onClose} />
-      <aside className="drawer wide" role="dialog" aria-modal="true" aria-labelledby="ag-title">
+      <aside className="drawer wide" ref={panel} role="dialog" aria-modal="true" aria-labelledby="ag-title">
         <div className="dr-head">
           <h2 id="ag-title" style={{ fontSize: "1.3rem" }}>Rent agreement</h2>
           <button ref={closeRef} className="iconbtn" type="button" onClick={onClose} aria-label="Close"><Icon name="close" small /></button>

@@ -5,7 +5,7 @@ import { useRef, useState, type Dispatch, type FormEvent, type SetStateAction } 
 import { Icon } from "@/components/Icon";
 import { useToast } from "@/components/Toast";
 import { addRoom, deletePhoto, removeRoom, updatePhoto } from "@/app/flats/actions";
-import { roomStats } from "@/lib/guidance";
+import { roomStats, withRecordChanged } from "@/lib/guidance";
 import { fmtDate, plural } from "@/lib/format";
 import { CONDITIONS, type Condition, type FlatDTO, type FlatPatch, type PhotoDTO } from "@/lib/types";
 import { OwnerConfirm } from "./OwnerConfirm";
@@ -106,6 +106,7 @@ export function RecordStep({ flat, setFlat, pending, freshIds, onFiles, onZoom, 
         <label className="lab" htmlFor="f-evidence">Other evidence</label>
         <textarea
           id="f-evidence"
+          maxLength={8000}
           value={flat.evidenceNotes}
           onChange={(e) => patchFlat({ evidenceNotes: e.target.value })}
           placeholder="WhatsApp messages, emails and rent agreement clauses, with dates. For example: 2 Mar 2024, owner on WhatsApp: the cracked kitchen tile is old, don't worry."
@@ -215,22 +216,27 @@ function PhotoCard({
   const noteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function setLocal(patch: Partial<PhotoDTO>) {
-    setFlat((f) => ({ ...f, photos: f.photos.map((p) => (p.id === photo.id ? { ...p, ...patch } : p)) }));
+    setFlat((f) => withRecordChanged({ ...f, photos: f.photos.map((p) => (p.id === photo.id ? { ...p, ...patch } : p)) }));
+  }
+
+  async function save(patch: { condition?: Condition; note?: string }) {
+    try {
+      const result = await updatePhoto(flatId, photo.id, patch);
+      if (!result.ok) toast(result.error, "bad");
+    } catch {
+      toast("Couldn't save that change. Check your connection and try again.", "bad");
+    }
   }
 
   async function setCondition(condition: Condition) {
     setLocal({ condition });
-    const result = await updatePhoto(flatId, photo.id, { condition });
-    if (!result.ok) toast(result.error, "bad");
+    await save({ condition });
   }
 
   function setNote(note: string) {
     setLocal({ note });
     if (noteTimer.current) clearTimeout(noteTimer.current);
-    noteTimer.current = setTimeout(async () => {
-      const result = await updatePhoto(flatId, photo.id, { note });
-      if (!result.ok) toast(result.error, "bad");
-    }, 600);
+    noteTimer.current = setTimeout(() => save({ note }), 600);
   }
 
   async function remove() {
@@ -240,12 +246,17 @@ function PhotoCard({
       return;
     }
     setLeaving(true);
-    const result = await deletePhoto(flatId, photo.id);
+    let result: Awaited<ReturnType<typeof deletePhoto>>;
+    try {
+      result = await deletePhoto(flatId, photo.id);
+    } catch {
+      result = { ok: false, error: "Couldn't delete the photo. Check your connection and try again." };
+    }
     if (!result.ok) {
       setLeaving(false);
       return toast(result.error, "bad");
     }
-    setTimeout(() => setFlat((f) => ({ ...f, photos: f.photos.filter((p) => p.id !== photo.id) })), 200);
+    setTimeout(() => setFlat((f) => withRecordChanged({ ...f, photos: f.photos.filter((p) => p.id !== photo.id) })), 200);
   }
 
   const taken = photo.takenAt ? `${photo.takenFrom === "camera" ? "Taken" : "File date"} ${fmtDate(photo.takenAt, true)}` : "Capture time unknown";

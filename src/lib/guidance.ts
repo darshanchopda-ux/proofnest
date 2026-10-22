@@ -4,6 +4,15 @@ import { CONDITIONS, DISPUTED, type ChargeDTO, type FlatDTO, type Step } from ".
 
 export type RoomStat = { name: string; count: number };
 
+/** After any photo changes, an owner link no longer matches the record exactly; the server confirms this on reload. */
+export function withRecordChanged(f: FlatDTO): FlatDTO {
+  return {
+    ...f,
+    ownerReview: f.ownerReview && { ...f.ownerReview, stale: true },
+    ownerAnswer: f.ownerAnswer && { ...f.ownerAnswer, stale: true },
+  };
+}
+
 export function roomStats(flat: FlatDTO): RoomStat[] {
   const names = [...flat.rooms];
   for (const p of flat.photos) if (!names.includes(p.room)) names.push(p.room);
@@ -67,32 +76,33 @@ export function nextAction(flat: FlatDTO): NextAction {
     }
     const pdf: NextButton = { kind: "link", label: "Move-in record (PDF)", href: `/flats/${flat.id}/report`, icon: "download" };
     const r = flat.ownerReview;
-    if (r && !r.stale && r.status === "confirmed") {
-      return {
-        key: "confirmed",
-        icon: "check",
-        title: `${r.ownerName} confirmed your move-in record`,
-        text: `Confirmed ${fmtIST(r.respondedAt!)}. It's on your move-in record. Keep this flat in ProofNest until you move out.`,
-        secondary: pdf,
-      };
-    }
-    if (r && !r.stale && r.status === "disputed") {
-      return {
-        key: "disputed",
-        icon: "alert",
-        title: `${r.ownerName} said something isn't right`,
-        text: `“${r.ownerNote}” Fix or explain it, then send a new link.`,
-        primary: { kind: "owner", label: "See their answer" },
-      };
-    }
-    if (r && !r.stale) {
+    const a = flat.ownerAnswer;
+    if (r && !r.stale && r.status === "pending") {
       return {
         key: "waiting",
         icon: "chat",
         title: "Waiting for your owner to confirm",
-        text: "Send them the link on WhatsApp if you haven't yet. Their answer shows up here as soon as they tap confirm.",
+        text: "Send them the link on WhatsApp if you haven't yet. Their answer appears here once they've confirmed; refresh to check.",
         primary: { kind: "owner", label: "Send the link" },
         secondary: pdf,
+      };
+    }
+    if (a && !a.stale && a.status === "confirmed") {
+      return {
+        key: "confirmed",
+        icon: "check",
+        title: `${a.ownerName} confirmed your move-in record`,
+        text: `Confirmed ${fmtIST(a.respondedAt!)}. It's on your move-in record. Keep this flat in ProofNest until you move out.`,
+        secondary: pdf,
+      };
+    }
+    if (a && !a.stale && a.status === "disputed") {
+      return {
+        key: "disputed",
+        icon: "alert",
+        title: `${a.ownerName} said something isn't right`,
+        text: `“${a.ownerNote}” Fix or explain it, then send a new link.`,
+        primary: { kind: "owner", label: "See their answer" },
       };
     }
     return {

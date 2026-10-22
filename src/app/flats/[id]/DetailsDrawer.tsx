@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { Icon } from "@/components/Icon";
 import { useToast } from "@/components/Toast";
 import { deleteFlat } from "@/app/flats/actions";
+import { useDialogFocus } from "@/components/useDialogFocus";
 import { depositMonths } from "@/lib/format";
 import type { FlatDTO, FlatPatch } from "@/lib/types";
 
@@ -22,6 +23,8 @@ export function DetailsDrawer({
   const [armed, setArmed] = useState(false);
   const [deleting, startDelete] = useTransition();
   const closeRef = useRef<HTMLButtonElement>(null);
+  const panel = useRef<HTMLElement>(null);
+  useDialogFocus(panel);
 
   useEffect(() => {
     closeRef.current?.focus();
@@ -35,6 +38,7 @@ export function DetailsDrawer({
         <input
           id={`f-${field}`}
           type={type}
+          maxLength={type === "text" ? (field === "address" ? 200 : 120) : undefined}
           value={raw == null ? "" : String(raw)}
           min={type === "number" ? 0 : undefined}
           inputMode={type === "number" ? "numeric" : undefined}
@@ -66,7 +70,7 @@ export function DetailsDrawer({
   return (
     <>
       <div className="overlay" onClick={onClose} />
-      <aside className="drawer" role="dialog" aria-modal="true" aria-labelledby="dr-title">
+      <aside className="drawer" ref={panel} role="dialog" aria-modal="true" aria-labelledby="dr-title">
         <div className="dr-head">
           <h2 id="dr-title" style={{ fontSize: "1.3rem" }}>Flat details</h2>
           <button ref={closeRef} className="iconbtn" type="button" onClick={onClose} aria-label="Close"><Icon name="close" small /></button>

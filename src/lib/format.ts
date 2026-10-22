@@ -21,11 +21,19 @@ export function parseDay(value: string | null | undefined): number | null {
   return m ? new Date(+m[1], +m[2] - 1, +m[3]).getTime() : null;
 }
 
+/**
+ * A calendar date (YYYY-MM-DD) is shown as written; a moment in time is shown in IST. Neither depends on the
+ * server's or the browser's time zone, so dates match on both and in letters written on a UTC server.
+ */
 export function fmtDate(value: string | number | Date | null | undefined, withTime = false): string {
   if (value == null || value === "") return "";
-  const ms = typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) ? parseDay(value) : new Date(value).getTime();
-  if (ms == null || Number.isNaN(ms)) return "";
-  const options: Intl.DateTimeFormatOptions = { day: "numeric", month: "short", year: "numeric" };
+  const day = typeof value === "string" ? /^(\d{4})-(\d{2})-(\d{2})$/.exec(value) : null;
+  if (day) {
+    return new Date(Date.UTC(+day[1], +day[2] - 1, +day[3])).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+  }
+  const ms = new Date(value).getTime();
+  if (Number.isNaN(ms)) return "";
+  const options: Intl.DateTimeFormatOptions = { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Kolkata" };
   if (withTime) Object.assign(options, { hour: "2-digit", minute: "2-digit" });
   return new Date(ms).toLocaleString("en-IN", options);
 }
@@ -45,15 +53,22 @@ export function depositMonths(rent: string | number | null | undefined, deposit:
   const d = Number(deposit) || 0;
   if (!r || !d) return "";
   const m = Math.round((d / r) * 10) / 10;
-  return `${m} month${m === 1 ? "" : "s"}' rent`;
+  return m === 1 ? "1 month's rent" : `${m} months' rent`;
 }
 
-/** When the owner should refund the deposit, from the handover date and the agreement's refund period. */
+/** Today's date in India, as whole days since 1970, whatever the device's time zone. */
+function todayInIndia(): number {
+  const [y, m, d] = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" }).split("-").map(Number);
+  return Date.UTC(y, m - 1, d) / DAY;
+}
+
+/**
+ * When the owner should refund the deposit, from the handover date and the agreement's refund period.
+ * Counts whole calendar days in India, so it's the same on a UTC server and in the browser, and across clock changes.
+ */
 export function refundInfo(keysHandedOver: string | null, refundDays: number | null): { due: number; left: number } | null {
-  const out = parseDay(keysHandedOver);
-  if (out == null || refundDays == null || refundDays < 0) return null;
-  const due = out + refundDays * DAY;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return { due, left: Math.round((due - today.getTime()) / DAY) };
+  const out = /^(\d{4})-(\d{2})-(\d{2})$/.exec(keysHandedOver ?? "");
+  if (!out || refundDays == null || refundDays < 0) return null;
+  const dueDay = Date.UTC(+out[1], +out[2] - 1, +out[3]) / DAY + refundDays;
+  return { due: dueDay * DAY, left: dueDay - todayInIndia() };
 }

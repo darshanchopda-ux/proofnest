@@ -3,14 +3,15 @@ import { get } from "@vercel/blob";
 import { and, eq, gt, sql } from "drizzle-orm";
 import sharp from "sharp";
 import { db } from "@/db";
-import { agreements, aiRuns, type AgreementClause, type AgreementFacts, type AgreementFile, type Flat, type Photo } from "@/db/schema";
-import { fmtDate, money } from "@/lib/format";
+import { agreements, aiRuns, flats, type AgreementClause, type AgreementFacts, type AgreementFile, type Flat, type Photo } from "@/db/schema";
+import { fmtIST, money } from "@/lib/format";
 import { EXAMPLE_CONTENT_TYPE } from "@/lib/flats";
 import type { WorkflowUsage } from "@/lib/n8n";
 
 /** Most photos sent to the AI per check. Each is resized to 1568px on its long edge. */
 export const MAX_IMAGES = 8;
-const RUNS_PER_HOUR = 15;
+/** AI runs per account per hour, across all its flats, to protect the shared free-tier quota. */
+const RUNS_PER_HOUR = 30;
 /** Most files in one agreement read: a PDF, or one photo per page. */
 export const AGREEMENT_MAX_FILES = 15;
 /** Most base64 characters of agreement files per read, to stay under n8n's default 16 MB request limit. */
@@ -37,7 +38,7 @@ export function flatFacts(flat: Flat) {
 }
 
 export function photoMeta(p: Photo) {
-  return { n: p.n, room: p.room, condition: p.condition, note: p.note, takenAt: p.takenAt ? fmtDate(p.takenAt) : null };
+  return { n: p.n, room: p.room, condition: p.condition, note: p.note, takenAt: p.takenAt ? fmtIST(p.takenAt) : null };
 }
 
 /** Picks the photos most likely to matter for these deductions: rooms named in the list, then damaged or worn ones. */
@@ -157,24 +158,34 @@ export async function agreementSummary(flatId: string): Promise<string | null> {
   return lines.join("\n") || null;
 }
 
-/** True when this flat has used up its hourly allowance of AI calls. */
-export async function overRunLimit(flatId: string): Promise<boolean> {
+/** True when this account has used up its hourly allowance of AI calls (runs still in progress count too). */
+export async function overRunLimit(userId: string): Promise<boolean> {
   const [row] = await db
     .select({ n: sql<number>`count(*)::int` })
     .from(aiRuns)
-    .where(and(eq(aiRuns.flatId, flatId), gt(aiRuns.createdAt, sql`now() - interval '1 hour'`)));
+    .innerJoin(flats, eq(aiRuns.flatId, flats.id))
+    .where(and(eq(flats.userId, userId), gt(aiRuns.createdAt, sql`now() - interval '1 hour'`)));
   return (row?.n ?? 0) >= RUNS_PER_HOUR;
 }
 
-export async function logRun(flatId: string, kind: "check" | "letter" | "agreement", started: number, result: { ok: boolean; model?: string; usage?: WorkflowUsage; error?: string }) {
-  await db.insert(aiRuns).values({
-    flatId,
-    kind,
-    status: result.ok ? "ok" : "error",
-    model: result.model ?? "",
-    inputTokens: result.usage?.input_tokens ?? null,
-    outputTokens: result.usage?.output_tokens ?? null,
-    latencyMs: Date.now() - started,
-    error: result.ok ? null : (result.error ?? "").slice(0, 500),
-  });
+type RunResult = { ok: boolean; model?: string; usage?: WorkflowUsage; error?: string };
+
+/** Records an AI run before it starts, so parallel requests count against the limit straight away. */
+export async function startRun(flatId: string, kind: "check" | "letter" | "agreement") {
+  const [row] = await db.insert(aiRuns).values({ flatId, kind, status: "running" }).returning({ id: aiRuns.id });
+  return { id: row.id, started: Date.now() };
+}
+
+export async function finishRun(run: { id: string; started: number }, result: RunResult) {
+  await db
+    .update(aiRuns)
+    .set({
+      status: result.ok ? "ok" : "error",
+      model: result.model ?? "",
+      inputTokens: result.usage?.input_tokens ?? null,
+      outputTokens: result.usage?.output_tokens ?? null,
+      latencyMs: Date.now() - run.started,
+      error: result.ok ? null : (result.error ?? "").slice(0, 500),
+    })
+    .where(eq(aiRuns.id, run.id));
 }
