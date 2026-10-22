@@ -256,7 +256,9 @@ export async function recordPhoto(flatId: string, input: RecordPhotoInput): Prom
     .update(flats)
     .set({
       nextPhotoN: sql`${flats.nextPhotoN} + 1`,
-      rooms: flat.rooms.includes(room) ? flat.rooms : [...flat.rooms, room],
+      rooms: phase === "moveout" || flat.rooms.includes(room) ? flat.rooms : [...flat.rooms, room],
+      // Photographing the flat for handover means the tenant is moving out.
+      ...(phase === "moveout" && { stage: "moveout" as const }),
       updatedAt: new Date(),
     })
     .where(eq(flats.id, flat.id))

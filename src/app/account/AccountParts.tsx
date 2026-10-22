@@ -109,8 +109,9 @@ export function SignOutEverywhere() {
   );
 }
 
-export function AccountDanger() {
+export function AccountDanger({ needsPassword }: { needsPassword: boolean }) {
   const [confirm, setConfirm] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [pending, start] = useTransition();
   return (
@@ -119,13 +120,19 @@ export function AccountDanger() {
       onSubmit={(e) => {
         e.preventDefault();
         start(async () => {
-          const r = await deleteAccount(confirm);
+          const r = await deleteAccount(confirm, password);
           if (r && !r.ok) setError(r.error);
         });
       }}
     >
       <label className="lab" htmlFor="acc-confirm">Type DELETE to confirm</label>
       <input id="acc-confirm" type="text" autoComplete="off" value={confirm} onChange={(e) => setConfirm(e.target.value)} />
+      {needsPassword && (
+        <>
+          <label className="lab" htmlFor="acc-password">Your password</label>
+          <input id="acc-password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+        </>
+      )}
       <button className="btn small ghost danger" type="submit" disabled={pending || confirm.trim().toUpperCase() !== "DELETE"}>
         {pending ? "Deleting…" : "Delete my account and data"}
       </button>

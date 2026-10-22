@@ -45,7 +45,11 @@ export function CameraCapture({ room, label = room, code, onShot, onClose }: Pro
           video: { facingMode: { ideal: "environment" }, width: { ideal: 2560 }, height: { ideal: 1920 } },
           audio: false,
         });
-        if (cancelled || !video.current) return;
+        // Closed while the camera was starting: switch it off again rather than leave it running.
+        if (cancelled || !video.current) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
         video.current.srcObject = stream;
         await video.current.play();
         track.current = stream.getVideoTracks()[0] ?? null;

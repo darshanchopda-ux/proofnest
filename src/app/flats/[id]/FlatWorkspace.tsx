@@ -143,7 +143,7 @@ export function FlatWorkspace({ initialFlat, initialStep }: { initialFlat: FlatD
           setFlat((f) =>
             withRecordChanged(
               phase === "moveout"
-                ? { ...f, moveOutPhotos: [...f.moveOutPhotos, result.data].sort((a, b) => a.n - b.n) }
+                ? { ...f, stage: "moveout", moveOutPhotos: [...f.moveOutPhotos, result.data].sort((a, b) => a.n - b.n) }
                 : { ...f, rooms: f.rooms.includes(room) ? f.rooms : [...f.rooms, room], photos: [...f.photos, result.data].sort((a, b) => a.n - b.n) },
               phase,
             ),

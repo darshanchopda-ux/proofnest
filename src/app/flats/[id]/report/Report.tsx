@@ -21,6 +21,7 @@ export function Report({ flat }: { flat: FlatDTO }) {
   const late = daysLate(flat.moveIn, flat.photos);
   const outRooms = [...new Set(flat.moveOutPhotos.map((p) => p.room))];
   const out = flat.moveOutAnswer;
+  const title = flat.moveOutPhotos.length ? "Move-in and move-out record" : "Move-in record";
   const stamped = real.filter((p) => p.timestampedAt);
   const authorities = [...new Set(stamped.map((p) => p.timestampBy))];
   const answer = flat.ownerAnswer;
@@ -43,7 +44,7 @@ export function Report({ flat }: { flat: FlatDTO }) {
           <Icon name="arrow" small className="flip" />Back to your flat
         </Link>
         <div className="rp-bar-main">
-          <PrintButton fileName={`Move-in record - ${flat.address}`.slice(0, 120)} />
+          <PrintButton fileName={`${title} - ${flat.address}`.slice(0, 120)} />
           {real.length > 0 && <EvidenceButton flat={flat} />}
           <p className="hint" style={{ margin: 0 }}>
             Choose <b>Save as PDF</b> as the printer, then send the PDF to your owner on WhatsApp or email on the day you move in. Ask them to
@@ -54,7 +55,7 @@ export function Report({ flat }: { flat: FlatDTO }) {
 
       <article className="rp-doc">
         <header className="rp-head">
-          <div className="rp-brand"><BrandMark />ProofNest · Move-in record</div>
+          <div className="rp-brand"><BrandMark />ProofNest · {title}</div>
           <h1>{flat.address}</h1>
           {facts.length > 0 && (
             <dl className="rp-facts">
@@ -150,7 +151,9 @@ export function Report({ flat }: { flat: FlatDTO }) {
 
             <section className="rp-sec rp-sign">
               <h2>Acknowledgement</h2>
-              <p>I have received this move-in record of {plural(flat.photos.length, "photo")}. A reply saying &ldquo;Received&rdquo; on WhatsApp or email also counts.</p>
+              <p>
+                I have received this record of {plural(flat.photos.length, "move-in photo")}
+                {flat.moveOutPhotos.length ? ` and ${plural(flat.moveOutPhotos.length, "move-out photo")}` : ""}. A reply saying &ldquo;Received&rdquo; on WhatsApp or email also counts.</p>
               <div className="rp-lines">
                 <div><span>Owner&apos;s name</span></div>
                 <div><span>Signature</span></div>

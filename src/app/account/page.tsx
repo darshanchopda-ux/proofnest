@@ -74,7 +74,7 @@ async function AccountLoader() {
           Deletes every flat you added, with all its photos, files and letters, also for flatmates you invited; removes you from flats you
           joined; and deletes your numbers and sign-in history. This can&apos;t be undone. Download your evidence pack first if you might need it.
         </p>
-        <AccountDanger />
+        <AccountDanger needsPassword={!mine} />
       </section>
     </div>
   );

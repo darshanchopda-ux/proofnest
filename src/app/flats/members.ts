@@ -1,7 +1,7 @@
 "use server";
 
 import { randomBytes } from "node:crypto";
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, gt, isNull, sql } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
 import { flatInvites, flatMembers } from "@/db/schema";
@@ -19,8 +19,13 @@ export async function createFlatInvite(flatId: string): Promise<Result<string>> 
   const flat = await getOwnedFlat(user.id, flatId);
   if (!flat) return NOT_FOUND;
   if (flat.userId !== user.id) return { ok: false, error: "Ask the flatmate who added this flat to send the invite." };
+  // Unused invites from the last week count too, so making many links can't get past the limit.
   const [members] = await db.select({ n: sql<number>`count(*)::int` }).from(flatMembers).where(eq(flatMembers.flatId, flat.id));
-  if ((members?.n ?? 0) >= 8) return { ok: false, error: "That's the most flatmates one flat can have." };
+  const [open] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(flatInvites)
+    .where(and(eq(flatInvites.flatId, flat.id), isNull(flatInvites.usedAt), gt(flatInvites.createdAt, sql`now() - interval '7 days'`)));
+  if ((members?.n ?? 0) + (open?.n ?? 0) >= 8) return { ok: false, error: "That's the most flatmates one flat can have, counting unused invites." };
   const token = randomBytes(18).toString("base64url");
   await db.insert(flatInvites).values({ flatId: flat.id, token, createdBy: user.id });
   return { ok: true, data: token };
@@ -34,6 +39,13 @@ export async function joinFlat(token: string, name: string): Promise<Result> {
   if (invite.ownerId === user.id) redirect(`/flats/${invite.flatId}`);
   const clean = String(name ?? "").trim().slice(0, 80);
   if (clean.length < 2) return { ok: false, error: "Type your name so your flatmates know who joined." };
+  // Already on the flat: keep the invite for someone else.
+  const [already] = await db
+    .select({ id: flatMembers.id })
+    .from(flatMembers)
+    .where(and(eq(flatMembers.flatId, invite.flatId), eq(flatMembers.userId, user.id)))
+    .limit(1);
+  if (already) redirect(`/flats/${invite.flatId}`);
   const [used] = await db
     .update(flatInvites)
     .set({ usedAt: new Date() })

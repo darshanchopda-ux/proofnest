@@ -33,7 +33,7 @@ export function coverage(flat: FlatDTO) {
 }
 
 export function isMoveOut(flat: FlatDTO): boolean {
-  return flat.stage === "moveout" || !!flat.keysHandedOver || !!flat.deductionsText.trim() || flat.charges.length > 0;
+  return flat.stage === "moveout" || !!flat.keysHandedOver || !!flat.deductionsText.trim() || flat.charges.length > 0 || flat.moveOutPhotos.length > 0;
 }
 
 export type StepState = "todo" | "partial" | "done";

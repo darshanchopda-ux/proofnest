@@ -30,6 +30,7 @@ export async function signInWithEmail(_prev: AuthFormState, formData: FormData):
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
   if (!email || !password) return { error: "Enter your email and password." };
+  if (/@phone\.proofnest\.app$/i.test(email)) return { error: "That email and password don't match. Try again." };
 
   const { data, error } = await auth.signIn.email({ email, password });
   if (error) return { error: error.message || "That email and password don't match. Try again." };
@@ -43,6 +44,8 @@ export async function signUpWithEmail(_prev: AuthFormState, formData: FormData):
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
   if (!name || !email) return { error: "Enter your name and email." };
+  // Addresses on this domain belong to WhatsApp accounts; letting email sign-up take one would lock that number out.
+  if (/@phone\.proofnest\.app$/i.test(email)) return { error: "Use your own email address." };
   if (password.length < 8) return { error: "Use a password of at least 8 characters." };
   if (!formData.get("consent")) return { error: "Tick the box to agree to the privacy notice." };
 
@@ -62,6 +65,8 @@ export async function requestWhatsAppCode(input: string): Promise<CodeRequest> {
   if (!phone) return { ok: false, error: "Enter a 10-digit mobile number, or a number with its country code like +44…" };
   const devLog = !whatsappConfigured() && process.env.NODE_ENV === "development";
   if (!whatsappConfigured() && !devLog) return { ok: false, error: "Sign-in with WhatsApp isn't set up yet. Use email for now." };
+  const [link] = await db.select({ off: phoneLinks.disabledAt }).from(phoneLinks).where(eq(phoneLinks.phone, phone)).limit(1);
+  if (link?.off) return { ok: false, error: "This number was switched off for ProofNest sign-in by its account holder. Use their backup number or email." };
 
   const ip = ((await headers()).get("x-forwarded-for") ?? "").split(",")[0].trim();
   const [perPhone] = await db

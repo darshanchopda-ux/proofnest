@@ -4,7 +4,8 @@ import { useState, type Dispatch, type FormEvent, type SetStateAction } from "re
 import { Icon } from "@/components/Icon";
 import { useToast } from "@/components/Toast";
 import { addRefundEntry, deleteRefundEntry } from "@/app/flats/actions";
-import { fmtDate, money, refundInfo } from "@/lib/format";
+import { refundAsk } from "@/lib/guidance";
+import { fmtDate, money, plural, refundInfo } from "@/lib/format";
 import type { FlatDTO, RefundDTO } from "@/lib/types";
 
 /** Tracks what the owner has paid back and what they say they're keeping, so the tenant always knows what's still owed. */
@@ -19,7 +20,9 @@ export function RefundTracker({ flat, setFlat }: { flat: FlatDTO; setFlat: Dispa
   const deposit = Number(flat.deposit) || 0;
   const received = flat.refunds.filter((r) => r.kind === "received").reduce((n, r) => n + r.amount, 0);
   const held = flat.refunds.filter((r) => r.kind === "held").reduce((n, r) => n + r.amount, 0);
-  const owed = Math.max(0, deposit - received);
+  // What's owed is the deposit minus the charges the tenant accepted, not the whole deposit.
+  const expected = refundAsk(flat) ?? deposit;
+  const owed = Math.max(0, expected - received);
   const due = refundInfo(flat.keysHandedOver, flat.refundDays);
 
   async function add(e: FormEvent) {
@@ -55,14 +58,15 @@ export function RefundTracker({ flat, setFlat }: { flat: FlatDTO; setFlat: Dispa
         <dl className="rf-sum">
           <div><dt>Deposit</dt><dd>{money(deposit)}</dd></div>
           <div><dt>Received</dt><dd>{money(received)}</dd></div>
-          <div className={owed ? "owed" : "paid"}><dt>Still with the owner</dt><dd>{money(owed)}</dd></div>
+          <div className={owed ? "owed" : "paid"}><dt>{expected < deposit ? "Still owed to you" : "Still with the owner"}</dt><dd>{money(owed)}</dd></div>
         </dl>
       ) : (
         <p className="hint">Add your security deposit in Edit details to see what&apos;s still owed.</p>
       )}
+      {expected < deposit && <p className="hint" style={{ margin: 0 }}>Owed is the deposit minus the {money(deposit - expected)} of charges you accepted.</p>}
       {held > 0 && <p className="hint">The owner says they&apos;re keeping {money(held)} of it. Dispute what you don&apos;t accept in your letter.</p>}
       {owed > 0 && due && due.left < 0 && (
-        <p className="rf-late">The refund was due {fmtDate(new Date(due.due))}, {Math.abs(due.left)} days ago. Send a polite reminder with your letter attached.</p>
+        <p className="rf-late">The refund was due {fmtDate(new Date(due.due))}, {plural(Math.abs(due.left), "day")} ago. Send a polite reminder with your letter attached.</p>
       )}
 
       {flat.refunds.length > 0 && (

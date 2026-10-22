@@ -222,7 +222,7 @@ function Consent({ checked, onChange, name }: { checked?: boolean; onChange?: (v
         {...(onChange ? { checked: !!checked, onChange: (e) => onChange(e.target.checked) } : {})}
       />
       <span>
-        I agree that ProofNest keeps my number, flat details and photos to make my record, as the{" "}
+        I agree that ProofNest keeps my sign-in details, flat details and photos to make my record, as the{" "}
         <Link href="/privacy" target="_blank">privacy notice</Link> explains. I can delete everything at any time.
       </span>
     </label>

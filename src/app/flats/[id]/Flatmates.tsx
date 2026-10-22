@@ -56,7 +56,7 @@ export function Flatmates({ flat, setFlat }: { flat: FlatDTO; setFlat: Dispatch<
           {flat.members.map((m) => (
             <li key={m.id}>
               <b>{m.name || "Flatmate"}{m.isYou ? " (you)" : ""}</b>
-              <label className="sr" htmlFor={`fm-${m.id}`}>{m.name}&apos;s part of the deposit</label>
+              <label className="sr" htmlFor={`fm-${m.id}`}>{m.name ? `${m.name}'s` : "Flatmate's"} part of the deposit</label>
               <input
                 id={`fm-${m.id}`}
                 type="number"

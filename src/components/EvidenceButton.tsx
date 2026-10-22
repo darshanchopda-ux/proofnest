@@ -61,9 +61,11 @@ export function EvidenceButton({ flat, className = "btn small ghost" }: { flat: 
         madeAt: made.toISOString(),
         flat: { address: flat.address, owner: flat.ownerName, tenant: flat.tenantName, movedIn: flat.moveIn, keysHandedOver: flat.keysHandedOver, monthlyRent: flat.monthlyRent, deposit: flat.deposit },
         ownerAnswer: flat.ownerAnswer && { status: flat.ownerAnswer.status, by: flat.ownerAnswer.ownerName, role: flat.ownerAnswer.ownerRole, at: flat.ownerAnswer.respondedAt, note: flat.ownerAnswer.ownerNote, photos: flat.ownerAnswer.photoNs.map((n) => `P${n}`), recordSha256: flat.ownerAnswer.recordHash },
+        moveOutAnswer: flat.moveOutAnswer && { status: flat.moveOutAnswer.status, by: flat.moveOutAnswer.ownerName, role: flat.moveOutAnswer.ownerRole, at: flat.moveOutAnswer.respondedAt, note: flat.moveOutAnswer.ownerNote, photos: flat.moveOutAnswer.photoNs.map((n) => `P${n}`), recordSha256: flat.moveOutAnswer.recordHash },
         photos: listed,
         agreement: flat.agreement && { facts: flat.agreement.facts, clauses: flat.agreement.clauses, readAt: flat.agreement.readAt },
-        charges: flat.charges.map((c) => ({ item: c.item, amount: c.amount, aiVerdict: c.aiVerdict, decision: c.decision, photos: c.photoNs.map((n) => `P${n}`), reason: c.reason })),
+        // Charges the tenant marked "AI got this wrong" go without the AI's verdict and reason.
+        charges: flat.charges.map((c) => ({ item: c.item, amount: c.amount, aiVerdict: c.aiFlagged ? null : c.aiVerdict, decision: c.decision, photos: c.photoNs.map((n) => `P${n}`), reason: c.aiFlagged ? "" : c.reason })),
       };
       entries.push({ name: "manifest.json", data: enc.encode(JSON.stringify(manifest, null, 2)) });
       entries.push({

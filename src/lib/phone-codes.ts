@@ -1,5 +1,5 @@
 import "server-only";
-import { and, desc, eq, gt, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, gt, isNull, lt, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { phoneCodes } from "@/db/schema";
 import { codeMatches } from "@/lib/phone-login";
@@ -19,13 +19,18 @@ export async function checkPhoneCode(phone: string, code: string): Promise<strin
     .orderBy(desc(phoneCodes.createdAt))
     .limit(1);
   if (!row) return "That code has expired. Send a new one.";
-  if (row.attempts >= MAX_TRIES) return "Too many wrong tries. Send a new code.";
+  // Take a try before comparing, in one statement, so guesses sent all at once can't each see "tries left".
+  const [tried] = await db
+    .update(phoneCodes)
+    .set({ attempts: sql`${phoneCodes.attempts} + 1` })
+    .where(and(eq(phoneCodes.id, row.id), isNull(phoneCodes.usedAt), lt(phoneCodes.attempts, MAX_TRIES)))
+    .returning({ attempts: phoneCodes.attempts });
+  if (!tried) return "Too many wrong tries. Send a new code.";
   if (!codeMatches(phone, code, row.codeHash)) {
-    await db.update(phoneCodes).set({ attempts: sql`${phoneCodes.attempts} + 1` }).where(eq(phoneCodes.id, row.id));
-    const left = MAX_TRIES - row.attempts - 1;
+    const left = MAX_TRIES - tried.attempts;
     return left > 0 ? `That code isn't right. ${left} ${left === 1 ? "try" : "tries"} left.` : "Too many wrong tries. Send a new code.";
   }
-  // Mark it used first, and only if nobody else just did, so a code can't sign in twice.
+  // Mark it used, and only if nobody else just did, so a code can't sign in twice.
   const [claimed] = await db
     .update(phoneCodes)
     .set({ usedAt: new Date() })

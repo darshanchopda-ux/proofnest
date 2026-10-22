@@ -30,7 +30,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           </header>
           <main>{children}</main>
           <footer className="foot wrap">
-            ProofNest gives legal information, not legal advice. Your flats are private to your account. <Link href="/privacy">Privacy</Link> ·{" "}
+            ProofNest gives legal information, not legal advice. Your flats are private to your account. <Link href="/account">Account</Link> · <Link href="/privacy">Privacy</Link> ·{" "}
             <Link href="/status">Status</Link>
           </footer>
         </ToastProvider>

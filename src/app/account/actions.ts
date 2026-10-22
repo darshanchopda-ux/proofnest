@@ -42,6 +42,9 @@ export async function addBackupPhone(input: string, codeInput: string): Promise<
 export async function removeBackupPhone(phone: string): Promise<Done> {
   const { mine } = await phoneUser();
   if (!mine || phone === mine) return { ok: false, error: "That number can't be removed." };
+  if (!(await stillWorks(mine, phone))) {
+    return { ok: false, error: "This is the only number that can sign in to your account. Add another, or switch your main number back on, first." };
+  }
   await db.delete(phoneLinks).where(and(eq(phoneLinks.phone, phone), eq(phoneLinks.accountPhone, mine)));
   return { ok: true };
 }
@@ -53,11 +56,9 @@ export async function removeBackupPhone(phone: string): Promise<Done> {
 export async function disablePhone(phone: string): Promise<Done> {
   const { mine } = await phoneUser();
   if (!mine) return { ok: false, error: "Your account signs in with email." };
-  const links = await db.select().from(phoneLinks).where(eq(phoneLinks.accountPhone, mine));
-  const numbers = [mine, ...links.filter((l) => l.phone !== mine).map((l) => l.phone)];
-  if (!numbers.includes(phone)) return { ok: false, error: "That number isn't on your account." };
-  const off = new Set(links.filter((l) => l.disabledAt).map((l) => l.phone));
-  if (numbers.filter((n) => n !== phone && !off.has(n)).length === 0) {
+  const links = await db.select({ phone: phoneLinks.phone }).from(phoneLinks).where(eq(phoneLinks.accountPhone, mine));
+  if (phone !== mine && !links.some((l) => l.phone === phone)) return { ok: false, error: "That number isn't on your account." };
+  if (!(await stillWorks(mine, phone))) {
     return { ok: false, error: "Add a backup number first, so you can still sign in after switching this one off." };
   }
   await db
@@ -66,6 +67,14 @@ export async function disablePhone(phone: string): Promise<Done> {
     .onConflictDoUpdate({ target: phoneLinks.phone, set: { disabledAt: new Date() } });
   await signOutEverywhere();
   return { ok: true };
+}
+
+/** True when some number other than `except` can still sign in to the account (phone accounts have no password). */
+async function stillWorks(mine: string, except: string): Promise<boolean> {
+  const links = await db.select().from(phoneLinks).where(eq(phoneLinks.accountPhone, mine));
+  const numbers = [mine, ...links.filter((l) => l.phone !== mine).map((l) => l.phone)];
+  const off = new Set(links.filter((l) => l.disabledAt).map((l) => l.phone));
+  return numbers.some((n) => n !== except && !off.has(n));
 }
 
 /** Lets a switched-off number sign in again. */
@@ -89,9 +98,21 @@ export async function signOutEverywhere() {
  * Deletes the account and everything in it: flats the user added (with every photo and file), their place on
  * flats they joined, numbers, sign-in history, and the sign-in account itself.
  */
-export async function deleteAccount(confirm: string): Promise<Done> {
+export async function deleteAccount(confirm: string, password = ""): Promise<Done> {
   const { user, mine } = await phoneUser();
   if (confirm.trim().toUpperCase() !== "DELETE") return { ok: false, error: "Type DELETE to confirm." };
+
+  // The sign-in account goes first: if it can't be deleted, nothing else is, and the person is told why.
+  // Phone accounts use their server-derived password; email accounts need a recent sign-in or their password.
+  let removed = await auth.deleteUser({});
+  if (removed.error && (mine || password)) removed = await auth.deleteUser({ password: mine ? phoneAccount(mine).password : password });
+  if (removed.error) {
+    console.error("Couldn't delete the sign-in account", user.id, removed.error);
+    return {
+      ok: false,
+      error: mine ? "Couldn't delete your account just now. Sign out, sign in again, then try once more." : "Enter your password to confirm, then try again.",
+    };
+  }
 
   const owned = await db.delete(flats).where(eq(flats.userId, user.id)).returning({ id: flats.id });
   for (const f of owned) await removeFolder(`flats/${f.id}/`);
@@ -101,11 +122,6 @@ export async function deleteAccount(confirm: string): Promise<Done> {
     const links = await db.delete(phoneLinks).where(eq(phoneLinks.accountPhone, mine)).returning({ phone: phoneLinks.phone });
     await db.delete(phoneCodes).where(and(inArray(phoneCodes.phone, [mine, ...links.map((l) => l.phone)]), isNull(phoneCodes.usedAt)));
   }
-
-  // Phone accounts have a server-derived password, which a fresh session may not need; email accounts rely on the session.
-  let removed = await auth.deleteUser({});
-  if (removed.error && mine) removed = await auth.deleteUser({ password: phoneAccount(mine).password });
-  if (removed.error) console.error("Couldn't delete the sign-in account", user.id, removed.error);
-  await auth.signOut();
+  await auth.signOut().catch(() => null);
   redirect("/?deleted=1");
 }

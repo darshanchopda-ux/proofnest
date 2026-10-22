@@ -5,7 +5,7 @@ import sharp from "sharp";
 import { db } from "@/db";
 import { agreements, aiRuns, flats, type AgreementClause, type AgreementFacts, type AgreementFile, type Flat, type Photo } from "@/db/schema";
 import { fmtIST, money } from "@/lib/format";
-import { EXAMPLE_CONTENT_TYPE } from "@/lib/flats";
+import { canOpen, EXAMPLE_CONTENT_TYPE } from "@/lib/flats";
 import type { WorkflowUsage } from "@/lib/n8n";
 
 /** Most photos sent to the AI per check. Each is resized to 1568px on its long edge. */
@@ -169,12 +169,13 @@ export async function agreementSummary(flatId: string): Promise<string | null> {
 }
 
 /** True when this account has used up its hourly allowance of AI calls (runs still in progress count too). */
+/** True when the flats this person can open (their own and shared ones) have used up the hour's AI runs. */
 export async function overRunLimit(userId: string): Promise<boolean> {
   const [row] = await db
     .select({ n: sql<number>`count(*)::int` })
     .from(aiRuns)
     .innerJoin(flats, eq(aiRuns.flatId, flats.id))
-    .where(and(eq(flats.userId, userId), gt(aiRuns.createdAt, sql`now() - interval '1 hour'`)));
+    .where(and(canOpen(userId), gt(aiRuns.createdAt, sql`now() - interval '1 hour'`)));
   return (row?.n ?? 0) >= RUNS_PER_HOUR;
 }
 

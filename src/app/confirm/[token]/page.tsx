@@ -5,12 +5,12 @@ import { reviewByToken } from "@/lib/owner-review";
 import { OwnerRecord } from "./OwnerRecord";
 
 export const metadata: Metadata = {
-  title: "Confirm a move-in record · ProofNest",
-  description: "Your tenant has shared photos of the flat from move-in day. Look through them and confirm in one tap. No account needed.",
+  title: "Confirm your flat's condition · ProofNest",
+  description: "Your tenant has shared dated photos of the flat. Look through them and confirm in one tap. No account needed.",
   robots: { index: false, follow: false },
   openGraph: {
-    title: "Please confirm the flat's move-in photos",
-    description: "Your tenant has shared photos of the flat from move-in day. Look through them and confirm in one tap. No account needed.",
+    title: "Please confirm the flat's condition",
+    description: "Your tenant has shared dated photos of the flat. Look through them and confirm in one tap. No account needed.",
   },
   referrer: "no-referrer",
 };
@@ -19,7 +19,7 @@ type Props = { params: Promise<{ token: string }> };
 
 export default function ConfirmPage({ params }: Props) {
   return (
-    <Suspense fallback={<div className="wrap loading"><i />Opening the move-in record…</div>}>
+    <Suspense fallback={<div className="wrap loading"><i />Opening the record…</div>}>
       <ConfirmLoader params={params} />
     </Suspense>
   );

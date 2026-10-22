@@ -34,6 +34,8 @@ export function LetterStep({ flat, setFlat, patchFlat, onStep, onCopy }: Props) 
           <span>Your letter is built from what you decide about each charge in step 3.</span>
           <button className="btn small" type="button" onClick={() => onStep("check")}>Go to step 3 <Icon name="arrow" small /></button>
         </div>
+        {/* The owner may deduct nothing and still pay late: tracking the money back doesn't need a letter. */}
+        <RefundTracker flat={flat} setFlat={setFlat} />
       </>
     );
   }
