@@ -152,7 +152,7 @@ export function CheckStep({ flat, setFlat, patchFlat, check, screenshot, setScre
               {real.slice(0, 8).map((p) => (
                 <button key={p.id} type="button" className="thumb" onClick={() => onZoom(p)}>
                   {/* eslint-disable-next-line @next/next/no-img-element -- private, auth-checked image route */}
-                  <img src={p.src!} alt="" loading="lazy" />
+                  <img src={`${p.src}?w=160`} alt="" loading="lazy" />
                   <small>P{p.n} · {p.room}</small>
                 </button>
               ))}

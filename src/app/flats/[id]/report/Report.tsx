@@ -102,7 +102,7 @@ export function Report({ flat }: { flat: FlatDTO }) {
                     <figure className={`rp-photo c-${p.condition}`} key={p.id}>
                       {p.src ? (
                         // eslint-disable-next-line @next/next/no-img-element -- private, auth-checked image route; eager so it prints
-                        <img src={p.src} alt={`Photo P${p.n}, ${p.room}`} loading="eager" />
+                        <img src={`${p.src}?w=1200`} alt={`Photo P${p.n}, ${p.room}`} loading="eager" />
                       ) : (
                         <div className="rp-ph">Example photo</div>
                       )}

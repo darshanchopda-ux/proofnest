@@ -48,7 +48,7 @@ export function OwnerRecord({ token, review, flat }: Props) {
               <figure className={`rp-photo c-${p.condition}`} key={p.id}>
                 {p.sha256 ? (
                   // eslint-disable-next-line @next/next/no-img-element -- private photo served only to holders of this link
-                  <img src={`/api/confirm/${token}/photos/${p.n}`} alt={`Photo P${p.n}, ${p.room}`} loading="lazy" />
+                  <img src={`/api/confirm/${token}/photos/${p.n}?w=1200`} alt={`Photo P${p.n}, ${p.room}`} loading="lazy" />
                 ) : (
                   <div className="rp-ph">Example photo</div>
                 )}

@@ -98,6 +98,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!rows.length) {
     return NextResponse.json({ ok: false, error: "The AI didn't find any charges in that message. Check it lists the deductions, then try again." }, { status: 422 });
   }
+  // Where the tenant overrode the AI on a charge, a re-check keeps their decision for the same charge.
+  const key = (item: string) => item.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const previous = await db
+    .select({ item: charges.item, aiVerdict: charges.aiVerdict, decision: charges.decision })
+    .from(charges)
+    .where(and(eq(charges.flatId, flat.id), eq(charges.source, "ai")));
+  const chosenBefore = new Map(previous.filter((c) => c.decision !== c.aiVerdict).map((c) => [key(c.item), c.decision]));
+  for (const row of rows) row.decision = chosenBefore.get(key(row.item)) ?? row.decision;
+
   // Replace the old AI verdicts in one transaction, and keep hand-added charges after the new ones.
   const manual = await db
     .select({ id: charges.id })

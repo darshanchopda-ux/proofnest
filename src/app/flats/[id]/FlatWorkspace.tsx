@@ -9,6 +9,7 @@ import { recordPhoto, updateFlat } from "@/app/flats/actions";
 import { useDialogFocus } from "@/components/useDialogFocus";
 import { isMoveOut, nextAction, stepStates, summaryText, totals, withRecordChanged, type NextButton } from "@/lib/guidance";
 import { depositMonths, fmtDate, money, plural, refundInfo } from "@/lib/format";
+import { flushSaves, scheduleSave, sendOnUnload } from "@/lib/pending-saves";
 import { exifDate, safeFileName, sha256Hex, toJpeg, UPLOADABLE } from "@/lib/photo-client";
 import { CONDITIONS, type AgreementDTO, type ChargeDTO, type FlatDTO, type FlatPatch, type PhotoDTO, type Step } from "@/lib/types";
 import { AgreementDrawer, type AgreementReadState } from "./AgreementDrawer";
@@ -56,7 +57,6 @@ export function FlatWorkspace({ initialFlat, initialStep }: { initialFlat: FlatD
   );
 
   /** Saves edits to the flat, keeping the screen in sync first so typing never waits on the network. */
-  const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const patchFlat = useCallback(
     (patch: FlatPatch, delay = 600) => {
       setFlat((f) => ({
@@ -70,16 +70,19 @@ export function FlatWorkspace({ initialFlat, initialStep }: { initialFlat: FlatD
               ? "movein"
               : f.stage,
       }));
-      const key = Object.keys(patch).join(",");
-      clearTimeout(saveTimers.current[key]);
-      saveTimers.current[key] = setTimeout(async () => {
-        try {
-          const result = await updateFlat(flat.id, patch);
-          if (!result.ok) toast(result.error, "bad");
-        } catch {
-          toast("Couldn't save that change. Check your connection and try again.", "bad");
-        }
-      }, delay);
+      scheduleSave(
+        `flat:${flat.id}:${Object.keys(patch).join(",")}`,
+        delay,
+        async () => {
+          try {
+            const result = await updateFlat(flat.id, patch);
+            if (!result.ok) toast(result.error, "bad");
+          } catch {
+            toast("Couldn't save that change. Check your connection and try again.", "bad");
+          }
+        },
+        () => sendOnUnload(`/api/flats/${flat.id}/save`, { patch }),
+      );
     },
     [flat.id, toast],
   );
@@ -292,10 +295,18 @@ export function FlatWorkspace({ initialFlat, initialStep }: { initialFlat: FlatD
     const keepFiles = (e: DragEvent) => {
       if (e.dataTransfer?.types.includes("Files")) e.preventDefault();
     };
+    // Send edits still waiting to save when the tab is hidden or closed, rather than losing them.
+    const onHide = () => {
+      if (document.visibilityState === "hidden") flushSaves();
+    };
+    document.addEventListener("visibilitychange", onHide);
+    window.addEventListener("pagehide", flushSaves);
     window.addEventListener("keydown", onKey);
     window.addEventListener("dragover", keepFiles);
     window.addEventListener("drop", keepFiles);
     return () => {
+      document.removeEventListener("visibilitychange", onHide);
+      window.removeEventListener("pagehide", flushSaves);
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("dragover", keepFiles);
       window.removeEventListener("drop", keepFiles);

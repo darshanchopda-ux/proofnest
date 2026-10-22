@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState, type Dispatch, type FormEvent, type SetStateAction } from "react";
+import { useState, type Dispatch, type FormEvent, type SetStateAction } from "react";
 import { Icon } from "@/components/Icon";
 import { useToast } from "@/components/Toast";
 import { addRoom, deletePhoto, removeRoom, updatePhoto } from "@/app/flats/actions";
 import { roomStats, withRecordChanged } from "@/lib/guidance";
+import { scheduleSave, sendOnUnload } from "@/lib/pending-saves";
 import { fmtDate, plural } from "@/lib/format";
 import { CONDITIONS, type Condition, type FlatDTO, type FlatPatch, type PhotoDTO } from "@/lib/types";
 import { OwnerConfirm } from "./OwnerConfirm";
@@ -213,7 +214,6 @@ function PhotoCard({
   const toast = useToast();
   const [armed, setArmed] = useState(false);
   const [leaving, setLeaving] = useState(false);
-  const noteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function setLocal(patch: Partial<PhotoDTO>) {
     setFlat((f) => withRecordChanged({ ...f, photos: f.photos.map((p) => (p.id === photo.id ? { ...p, ...patch } : p)) }));
@@ -235,8 +235,7 @@ function PhotoCard({
 
   function setNote(note: string) {
     setLocal({ note });
-    if (noteTimer.current) clearTimeout(noteTimer.current);
-    noteTimer.current = setTimeout(() => save({ note }), 600);
+    scheduleSave(`photo:${photo.id}`, 600, () => save({ note }), () => sendOnUnload(`/api/flats/${flatId}/save`, { photo: { id: photo.id, note } }));
   }
 
   async function remove() {
@@ -266,7 +265,7 @@ function PhotoCard({
       <button className="pimg" type="button" onClick={() => onZoom(photo)} aria-label={`Enlarge photo P${photo.n}`}>
         {photo.src ? (
           // eslint-disable-next-line @next/next/no-img-element -- private, auth-checked image route
-          <img src={photo.src} alt={`Photo P${photo.n}, ${photo.room}`} loading="lazy" />
+          <img src={`${photo.src}?w=480`} alt={`Photo P${photo.n}, ${photo.room}`} loading="lazy" />
         ) : (
           <span className="ph">Example photo: {photo.note}</span>
         )}

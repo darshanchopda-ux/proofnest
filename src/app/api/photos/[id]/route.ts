@@ -4,9 +4,10 @@ import { db } from "@/db";
 import { flats, photos } from "@/db/schema";
 import { getCurrentUser, isUuid } from "@/lib/dal";
 import { EXAMPLE_CONTENT_TYPE } from "@/lib/flats";
+import { photoResponse } from "@/lib/photo-response";
 
 /** Streams a private photo to its owner. Photos are never served from a public URL. */
-export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const user = await getCurrentUser();
   if (!user) return new Response("Sign in to view this photo.", { status: 401 });
@@ -23,11 +24,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   const blob = await get(row.pathname, { access: "private" });
   if (!blob || blob.statusCode !== 200) return new Response("Not found", { status: 404 });
 
-  return new Response(blob.stream, {
-    headers: {
-      "Content-Type": blob.blob.contentType || row.contentType,
-      "Cache-Control": "private, max-age=3600",
-      "X-Content-Type-Options": "nosniff",
-    },
+  return photoResponse(blob.stream, blob.blob.contentType || row.contentType, new URL(request.url).searchParams.get("w"), {
+    "Cache-Control": "private, max-age=3600",
+    "X-Content-Type-Options": "nosniff",
   });
 }
