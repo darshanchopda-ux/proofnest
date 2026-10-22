@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { Icon } from "@/components/Icon";
+import { ProofSeal } from "@/components/ProofSeal";
 import { fmtIST, plural } from "@/lib/format";
 import { answerOwnerReview } from "../actions";
 
@@ -27,6 +28,9 @@ export function ConfirmForm({ token, tenant, count, kind, defaultName, answer: i
   if (answer) {
     return (
       <section className={`op-answer ${answer.status}`} role="status">
+        {answer.status === "confirmed" && (
+          <ProofSeal top="CONFIRMED BY OWNER" bottom={fmtIST(answer.at).toUpperCase()} center="✓" size={96} press={!initial} delay={0.05} label="Confirmed" />
+        )}
         <b>
           {answer.status === "confirmed" ? <><Icon name="check" small />Confirmed by {answer.name}</> : <>{answer.name} said something isn&apos;t right</>}
         </b>

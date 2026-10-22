@@ -2,14 +2,14 @@
 
 import { upload } from "@vercel/blob/client";
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Icon } from "@/components/Icon";
 import { useToast } from "@/components/Toast";
 import { recordPhoto, updateFlat } from "@/app/flats/actions";
 import { useDialogFocus } from "@/components/useDialogFocus";
 import { isMoveOut, nextAction, stepStates, summaryText, totals, withRecordChanged, type NextButton } from "@/lib/guidance";
 import { depositMonths, fmtDate, money, plural, refundInfo } from "@/lib/format";
-import { flushSaves, scheduleSave, sendOnUnload } from "@/lib/pending-saves";
+import { flushSaves, savesInFlight, scheduleSave, sendOnUnload, subscribeSaves } from "@/lib/pending-saves";
 import { exifDate, safeFileName, sha256Hex, toJpeg, UPLOADABLE } from "@/lib/photo-client";
 import { MoveOutStep } from "./MoveOutStep";
 import { CONDITIONS, type AgreementDTO, type ChargeDTO, type FlatDTO, type FlatPatch, type PhotoDTO, type PhotoPhase, type Step } from "@/lib/types";
@@ -363,7 +363,10 @@ export function FlatWorkspace({ initialFlat, initialStep }: { initialFlat: FlatD
         running={check.running}
       />
       <div className="folder">
-      <Stepper flat={flat} step={step} onStep={goStep} />
+      <div className="tabrow">
+        <Stepper flat={flat} step={step} onStep={goStep} />
+        <SaveState uploading={Object.values(pending).reduce((n, k) => n + k, 0)} />
+      </div>
       <section className="panel enter" key={animKey} role="region" aria-label={STEPS.find((s) => s.id === step)?.title}>
         {step === "record" && (
           <RecordStep
@@ -501,6 +504,34 @@ function CaseHead({ flat, reading, onEdit, onAgreement }: { flat: FlatDTO; readi
         </div>
       </dl>
     </section>
+  );
+}
+
+const subscribeOnline = (fn: () => void) => {
+  window.addEventListener("online", fn);
+  window.addEventListener("offline", fn);
+  return () => {
+    window.removeEventListener("online", fn);
+    window.removeEventListener("offline", fn);
+  };
+};
+
+/** Says plainly whether everything is saved: tenants often work on patchy 4G in an empty flat. */
+function SaveState({ uploading }: { uploading: number }) {
+  const saving = useSyncExternalStore(subscribeSaves, savesInFlight, () => 0);
+  const online = useSyncExternalStore(subscribeOnline, () => navigator.onLine, () => true);
+  const state = !online ? "offline" : uploading ? "uploading" : saving ? "saving" : "saved";
+  const text = {
+    offline: uploading ? `Offline · ${plural(uploading, "photo")} will send when you're back` : "Offline · keep this page open",
+    uploading: `Saving ${plural(uploading, "photo")}…`,
+    saving: "Saving…",
+    saved: "All changes saved",
+  }[state];
+  return (
+    <p className={`savestate ${state}`} role="status" aria-live="polite">
+      <i aria-hidden="true" />
+      {text}
+    </p>
   );
 }
 

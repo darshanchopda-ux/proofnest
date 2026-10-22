@@ -33,14 +33,31 @@ export function daysLate(moveIn: string | null, photos: PhotoDTO[]): number {
 
 const NETWORK = /failed to fetch|network|load failed|timed? ?out|connection/i;
 
-/** Runs an upload step again (up to three tries, waiting longer each time) when the connection drops. */
-export async function withRetry<T>(fn: () => Promise<T>, tries = 3): Promise<T> {
+/** Resolves when the browser is back online, or after `ms` (patchy 4G often comes back without an "online" event). */
+function backOnline(ms: number): Promise<void> {
+  if (typeof navigator === "undefined" || navigator.onLine) return new Promise((r) => setTimeout(r, ms));
+  return new Promise((resolve) => {
+    const done = () => {
+      window.removeEventListener("online", done);
+      clearTimeout(timer);
+      resolve();
+    };
+    const timer = setTimeout(done, Math.max(ms, 15_000));
+    window.addEventListener("online", done);
+  });
+}
+
+/**
+ * Runs an upload step again when the connection drops: quickly at first, then waiting for the network to come back,
+ * for up to about two minutes, so a photo taken in a lift or a basement still reaches the record.
+ */
+export async function withRetry<T>(fn: () => Promise<T>, tries = 6): Promise<T> {
   for (let i = 1; ; i++) {
     try {
       return await fn();
     } catch (e) {
       if (i >= tries || !NETWORK.test(e instanceof Error ? e.message : String(e))) throw e;
-      await new Promise((r) => setTimeout(r, 1500 * i));
+      await backOnline(1500 * i);
     }
   }
 }

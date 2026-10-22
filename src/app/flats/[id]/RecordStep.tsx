@@ -8,9 +8,10 @@ import { addRoom, deletePhoto, removeRoom, updatePhoto } from "@/app/flats/actio
 import { roomStats, withRecordChanged } from "@/lib/guidance";
 import { scheduleSave, sendOnUnload } from "@/lib/pending-saves";
 import { fmtDate, plural } from "@/lib/format";
-import { daysLate, isEarlier, proofLine } from "@/lib/photo-labels";
+import { daysLate, isEarlier } from "@/lib/photo-labels";
 import { CONDITIONS, type Condition, type FlatDTO, type FlatPatch, type PhotoDTO } from "@/lib/types";
 import { EvidenceButton } from "@/components/EvidenceButton";
+import { ProofSeal } from "@/components/ProofSeal";
 import { OwnerConfirm } from "./OwnerConfirm";
 
 type Props = {
@@ -71,13 +72,13 @@ export function RecordStep({ flat, setFlat, pending, freshIds, onCamera, onEarli
         </div>
       </div>
 
-      <p className="daycode">
-        <Icon name="key" small />
-        <span>
-          Photos are taken live with ProofNest&apos;s camera, never picked from the gallery, so nobody can say they were edited or
-          made with AI. Each one has the time and today&apos;s code, <code>{flat.dayCode}</code>, printed on it.
-        </span>
-      </p>
+      <div className="proofbar">
+        <ProofSeal center={flat.dayCode} size={48} tilt={-6} label={`Today's code, ${flat.dayCode}`} />
+        <p>
+          <b>Today&apos;s code is <code>{flat.dayCode}</code>.</b> ProofNest&apos;s camera prints it, with the room and time, on every photo. Gallery
+          photos can&apos;t be added, so nobody can say yours were edited or made with AI.
+        </p>
+      </div>
 
       {(late > 1 || earlierCount > 0) && (
         <p className="notice late">
@@ -94,8 +95,13 @@ export function RecordStep({ flat, setFlat, pending, freshIds, onCamera, onEarli
 
       <details className="tips">
         <summary>
-          <Icon name="camera" small />How to take move-in photos that hold up<Icon name="chevron" small className="chev" />
+          How the proof works, and tips for photos that hold up<Icon name="chevron" small className="chev" />
         </summary>
+        <p className="tips-proof">
+          Each photo gets a fingerprint of the exact file and a timestamp from an independent authority (FreeTSA), which proves the photo
+          existed at that moment without anyone having to trust ProofNest. Sealed photos show the violet seal. Only you can see your photos,
+          and your owner only if you send them the link.
+        </p>
         <ul>
           <li>Shoot in daylight with the lights on. Stand in a corner so each photo shows two walls and the floor.</li>
           <li>Then take close-ups of every crack, stain, chip, loose hinge or seepage mark, and mark the photo Worn or Damaged.</li>
@@ -105,6 +111,11 @@ export function RecordStep({ flat, setFlat, pending, freshIds, onCamera, onEarli
       </details>
 
       <div className="roomsbar">
+        <div className="rprog" aria-label={`${rooms.filter((x) => x.count).length} of ${rooms.length} rooms photographed`}>
+          <b className="mono">{rooms.filter((x) => x.count).length}/{rooms.length}</b>
+          <span>rooms done</span>
+          <i aria-hidden="true">{rooms.map((x) => <span key={x.name} className={x.count ? "on" : ""} />)}</i>
+        </div>
         {rooms.map((r, i) => (
           <a key={r.name} className={`rchip ${r.count ? "done" : ""}`} href={`#room-${i}`}>
             {r.count ? <Icon name="check" small /> : <i className="ring" />}
@@ -288,7 +299,8 @@ export function PhotoCard({
   }
 
   const taken = photo.takenAt ? `${photo.takenFrom === "camera" ? "Taken" : "File date"} ${fmtDate(photo.takenAt, true)}` : "Capture time unknown";
-  const proof = photo.isExample ? "" : proofLine(photo);
+  // The seal goes only on photos that are both live and independently timestamped; the rest say what they lack.
+  const sealed = photo.capture === "live" && !!photo.timestampedAt;
 
   return (
     <figure className={`pcard ${photo.condition === "damaged" ? "cond-damaged" : ""} ${fresh ? "pop" : ""} ${leaving ? "leaving" : ""}`}>
@@ -301,6 +313,7 @@ export function PhotoCard({
         )}
         <span className="ptag">P{photo.n}</span>
         {isEarlier(photo) && <span className="ptag earlier">Earlier · not verified</span>}
+        {sealed && <ProofSeal center={photo.dayCode} size={44} label={`Sealed: taken live, timestamped by ${photo.timestampBy}`} />}
       </button>
       <div className="pbody">
         <div className="seg" role="group" aria-label={`Condition of P${photo.n}`}>
@@ -320,9 +333,20 @@ export function PhotoCard({
           onChange={(e) => setNote(e.target.value)}
         />
         <div className="pfoot">
-          <span className="pmeta">
+          <span className="proofline">
             {taken}
-            {proof && <><br /><span className={photo.capture === "live" ? "live" : ""}>{proof}</span></>}
+            {!photo.isExample && (
+              <>
+                <br />
+                {sealed ? (
+                  <span className="v">Sealed · {photo.timestampBy} · code {photo.dayCode}</span>
+                ) : photo.capture === "live" ? (
+                  <span>Taken live · code {photo.dayCode} · sealing…</span>
+                ) : (
+                  <span className="u">Gallery photo · not verified</span>
+                )}
+              </>
+            )}
             {photo.sha256 && <><br />#{photo.sha256.slice(0, 12)}</>}
           </span>
           <button

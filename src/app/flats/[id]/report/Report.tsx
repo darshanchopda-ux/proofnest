@@ -5,6 +5,7 @@ import { roomStats } from "@/lib/guidance";
 import { daysLate, isEarlier } from "@/lib/photo-labels";
 import { CONDITIONS, type FlatDTO, type PhotoDTO } from "@/lib/types";
 import { EvidenceButton } from "@/components/EvidenceButton";
+import { ProofSeal } from "@/components/ProofSeal";
 import { PrintButton } from "./PrintButton";
 
 export function Report({ flat }: { flat: FlatDTO }) {
@@ -76,6 +77,16 @@ export function Report({ flat }: { flat: FlatDTO }) {
 
         {flat.ownerAnswer?.respondedAt && (
           <section className={`rp-owner ${flat.ownerAnswer.status}`}>
+            {flat.ownerAnswer.status === "confirmed" && (
+              <ProofSeal
+                top="CONFIRMED BY OWNER"
+                bottom={fmtDate(flat.ownerAnswer.respondedAt).toUpperCase()}
+                center="✓"
+                size={84}
+                tilt={-6}
+                label={`Owner's confirmation, ${fmtDate(flat.ownerAnswer.respondedAt)}`}
+              />
+            )}
             {flat.ownerAnswer.status === "confirmed" ? (
               <p>
                 <b>Confirmed by the owner.</b> {flat.ownerAnswer.ownerName} confirmed photos{" "}
@@ -261,12 +272,17 @@ export function Report({ flat }: { flat: FlatDTO }) {
 function Shot({ p }: { p: PhotoDTO }) {
   return (
     <figure className={`rp-photo c-${p.condition}`}>
-      {p.src ? (
-        // eslint-disable-next-line @next/next/no-img-element -- private, auth-checked image route; eager so it prints
-        <img src={`${p.src}?w=1200`} alt={`Photo P${p.n}, ${p.room}`} loading="eager" />
-      ) : (
-        <div className="rp-ph">Example photo</div>
-      )}
+      <div className="rp-img">
+        {p.src ? (
+          // eslint-disable-next-line @next/next/no-img-element -- private, auth-checked image route; eager so it prints
+          <img src={`${p.src}?w=1200`} alt={`Photo P${p.n}, ${p.room}`} loading="eager" />
+        ) : (
+          <div className="rp-ph">Example photo</div>
+        )}
+        {p.capture === "live" && p.timestampedAt && (
+          <ProofSeal center={p.dayCode} bottom={fmtDate(p.timestampedAt).toUpperCase()} size={72} label={`Sealed: taken live, timestamped by ${p.timestampBy}`} />
+        )}
+      </div>
       <figcaption>
         <div className="rp-cap">
           <b>P{p.n}</b>

@@ -1,10 +1,22 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
+import { IBM_Plex_Mono, Public_Sans } from "next/font/google";
 import Link from "next/link";
 import { Suspense } from "react";
 import { BrandMark } from "@/components/Icon";
 import { ToastProvider } from "@/components/Toast";
 import { UserMenu } from "@/components/UserMenu";
 import "./globals.css";
+
+// Public Sans for reading (it was made for government forms); Plex Mono only for facts on the record.
+const sans = Public_Sans({ subsets: ["latin"], variable: "--font-sans", display: "swap" });
+const mono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500", "600", "700"], variable: "--font-mono", display: "swap" });
+
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#F3F5F0" },
+    { media: "(prefers-color-scheme: dark)", color: "#0F1512" },
+  ],
+};
 
 export const metadata: Metadata = {
   title: "ProofNest",
@@ -13,7 +25,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en-IN">
+    <html lang="en-IN" className={`${sans.variable} ${mono.variable}`}>
       <body>
         <ToastProvider>
           <header className="appbar">
