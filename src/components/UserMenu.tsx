@@ -13,7 +13,7 @@ export async function UserMenu() {
   }
   return (
     <form className="usermenu" action={signOut}>
-      <span className="who">{user.name || user.email}</span>
+      <Link className="who" href="/account" title="Your account">{user.name || user.email}</Link>
       <button className="btn small ghost" type="submit">Sign out</button>
     </form>
   );

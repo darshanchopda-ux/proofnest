@@ -587,3 +587,17 @@ body:has(.owner-page) .usermenu { display: none; }
 .fm-list li { display: grid; grid-template-columns: minmax(0, 1fr) 130px auto; align-items: center; gap: 8px; }
 .fm-link { display: grid; gap: 8px; }
 .fm-link code { font-family: var(--mono); font-size: .76rem; padding: 8px 10px; background: var(--paper); border-radius: 6px; overflow-wrap: anywhere; }
+
+/* account page */
+.account h1 { font-size: 1.6rem; margin: 4px 0 4px; }
+.acc-sec { margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--rule); display: grid; gap: 10px; }
+.acc-sec h2 { font-size: 1.1rem; }
+.acc-sec > .btn { justify-self: start; }
+.acc-numbers, .acc-history { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.acc-numbers li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+.acc-numbers li.off b { text-decoration: line-through; color: var(--muted); }
+.acc-history li { display: grid; gap: 1px; font-size: .9rem; padding-bottom: 8px; border-bottom: 1px solid var(--rule); }
+.acc-add { display: grid; gap: 8px; max-width: 360px; }
+.acc-add .btn { justify-self: start; }
+.usermenu a.who { text-decoration: none; }
+.usermenu a.who:hover { color: var(--ink); text-decoration: underline; }

@@ -4,7 +4,9 @@ import { and, desc, eq, gt, isNull, sql } from "drizzle-orm";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
-import { phoneCodes } from "@/db/schema";
+import { phoneCodes, phoneLinks } from "@/db/schema";
+import { recordSignIn } from "@/lib/account";
+import { checkPhoneCode, CODE_MINUTES } from "@/lib/phone-codes";
 import { auth } from "@/lib/auth/server";
 import { codeMatches, displayPhone, hashCode, newCode, normalizePhone, phoneAccount } from "@/lib/phone-login";
 import { sendWhatsAppCode, whatsappConfigured } from "@/lib/whatsapp";
@@ -29,8 +31,9 @@ export async function signInWithEmail(_prev: AuthFormState, formData: FormData):
   const password = String(formData.get("password") ?? "");
   if (!email || !password) return { error: "Enter your email and password." };
 
-  const { error } = await auth.signIn.email({ email, password });
+  const { data, error } = await auth.signIn.email({ email, password });
   if (error) return { error: error.message || "That email and password don't match. Try again." };
+  await recordSignIn(data?.user?.id, "email");
 
   redirect(safeNext(formData.get("next")));
 }
@@ -42,14 +45,13 @@ export async function signUpWithEmail(_prev: AuthFormState, formData: FormData):
   if (!name || !email) return { error: "Enter your name and email." };
   if (password.length < 8) return { error: "Use a password of at least 8 characters." };
 
-  const { error } = await auth.signUp.email({ name, email, password });
+  const { data, error } = await auth.signUp.email({ name, email, password });
   if (error) return { error: error.message || "Couldn't create your account. Try again." };
+  await recordSignIn(data?.user?.id, "email");
 
   redirect(safeNext(formData.get("next")));
 }
 
-const CODE_MINUTES = 5;
-const MAX_TRIES = 5;
 
 export type CodeRequest = { ok: true; phone: string; display: string; note?: string } | { ok: false; error: string };
 
@@ -88,40 +90,31 @@ export async function requestWhatsAppCode(input: string): Promise<CodeRequest> {
 
 /**
  * Checks the code and signs the person in to the account for that number, creating it the first time.
- * Each code works once, for 5 minutes, and is cancelled after 5 wrong tries.
+ * A backup number signs in to the account it was added to; a number its owner switched off can't sign in.
  */
 export async function verifyWhatsAppCode(phoneInput: string, codeInput: string, next: string): Promise<{ ok: false; error: string }> {
   const phone = normalizePhone(phoneInput);
   const code = String(codeInput ?? "").replace(/\D/g, "");
   if (!phone || code.length !== 6) return { ok: false, error: "Enter the 6-digit code from WhatsApp." };
 
-  const [row] = await db
-    .select()
-    .from(phoneCodes)
-    .where(and(eq(phoneCodes.phone, phone), isNull(phoneCodes.usedAt), gt(phoneCodes.expiresAt, new Date())))
-    .orderBy(desc(phoneCodes.createdAt))
-    .limit(1);
-  if (!row) return { ok: false, error: "That code has expired. Send a new one." };
-  if (row.attempts >= MAX_TRIES) return { ok: false, error: "Too many wrong tries. Send a new code." };
-  if (!codeMatches(phone, code, row.codeHash)) {
-    await db.update(phoneCodes).set({ attempts: sql`${phoneCodes.attempts} + 1` }).where(eq(phoneCodes.id, row.id));
-    const left = MAX_TRIES - row.attempts - 1;
-    return { ok: false, error: left > 0 ? `That code isn't right. ${left} ${left === 1 ? "try" : "tries"} left.` : "Too many wrong tries. Send a new code." };
+  const [link] = await db.select().from(phoneLinks).where(eq(phoneLinks.phone, phone)).limit(1);
+  // Checked before the code, so a recycled number can't even try: Indian operators reissue numbers after about 90 days.
+  if (link?.disabledAt) {
+    return { ok: false, error: "This number was switched off for ProofNest sign-in by its account holder. Sign in with their backup number or email." };
   }
-  // Mark it used first, and only if nobody else just did, so a code can't sign in twice.
-  const [claimed] = await db
-    .update(phoneCodes)
-    .set({ usedAt: new Date() })
-    .where(and(eq(phoneCodes.id, row.id), isNull(phoneCodes.usedAt)))
-    .returning({ id: phoneCodes.id });
-  if (!claimed) return { ok: false, error: "That code has already been used. Send a new one." };
+  const err = await checkPhoneCode(phone, code);
+  if (err) return { ok: false, error: err };
 
-  const { email, password } = phoneAccount(phone);
+  const accountPhone = link?.accountPhone ?? phone;
+  const { email, password } = phoneAccount(accountPhone);
   const signedIn = await auth.signIn.email({ email, password });
+  let userId = signedIn.data?.user?.id;
   if (signedIn.error) {
-    const created = await auth.signUp.email({ name: displayPhone(phone), email, password });
+    const created = await auth.signUp.email({ name: displayPhone(accountPhone), email, password });
     if (created.error) return { ok: false, error: "Couldn't sign you in. Try again in a minute." };
+    userId = created.data?.user?.id;
   }
+  await recordSignIn(userId, "whatsapp", phone);
   redirect(safeNext(next));
 }
 
