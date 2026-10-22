@@ -1,5 +1,6 @@
 "use client";
 
+import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Icon } from "@/components/Icon";
@@ -30,6 +31,17 @@ export function CameraCapture({ room, label = room, code, onShot, onClose }: Pro
   const [flash, setFlash] = useState(false);
   const [torch, setTorch] = useState<"none" | "off" | "on">("none");
   const [dark, setDark] = useState(false);
+  // The last photo, shown as a small print in the corner, and the live time for the stamp preview.
+  const [last, setLast] = useState<string | null>(null);
+  const lastUrl = useRef<string | null>(null);
+  const [clock, setClock] = useState(() => fmtIST(Date.now()));
+  useEffect(() => {
+    const id = setInterval(() => setClock(fmtIST(Date.now())), 1000);
+    return () => {
+      clearInterval(id);
+      if (lastUrl.current) URL.revokeObjectURL(lastUrl.current);
+    };
+  }, []);
   useDialogFocus(box);
 
   useEffect(() => {
@@ -125,6 +137,9 @@ export function CameraCapture({ room, label = room, code, onShot, onClose }: Pro
       (blob) => {
         if (!blob) return;
         onShot(new File([blob], `${room.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${now}.jpg`, { type: "image/jpeg", lastModified: now }));
+        if (lastUrl.current) URL.revokeObjectURL(lastUrl.current);
+        lastUrl.current = URL.createObjectURL(blob);
+        setLast(lastUrl.current);
         setTaken((t) => t + 1);
         setFlash(true);
         setTimeout(() => setFlash(false), 160);
@@ -142,13 +157,22 @@ export function CameraCapture({ room, label = room, code, onShot, onClose }: Pro
         <div className="cam-top">
           <div>
             <b>{label}</b>
-            <span>Today&apos;s code <code>{code}</code> is printed on every photo</span>
+            <span>Code <code>{code}</code> goes on every photo</span>
           </div>
           <button className="iconbtn" type="button" onClick={onClose} aria-label="Close the camera"><Icon name="close" small /></button>
         </div>
         <div className={`cam-view ${flash ? "flash" : ""}`}>
           {error ? <p className="cam-msg">{error}</p> : <video ref={video} playsInline muted />}
           {!ready && !error && <p className="cam-msg">Starting the camera…</p>}
+          {ready && (
+            <>
+              {/* Framing guides: aim for two walls and the floor in every wide shot. */}
+              <span className="cam-guides" aria-hidden="true"><i /><i /><i /><i /></span>
+              {!taken && !dark && <p className="cam-tip">Stand in a corner so the photo shows two walls and the floor.</p>}
+              {/* Exactly what will be printed on the photo, live. */}
+              <p className="cam-stamp" aria-label="Printed on each photo">ProofNest · {label} · {clock} · Code {code}</p>
+            </>
+          )}
           {ready && dark && (
             <p className="cam-dark" role="status">
               Too dark to show damage clearly. Switch on the lights{torch !== "none" ? " or the torch" : ""}, or open the curtains.
@@ -161,8 +185,27 @@ export function CameraCapture({ room, label = room, code, onShot, onClose }: Pro
           )}
         </div>
         <div className="cam-bar">
-          <span>{taken ? `${plural(taken, "photo")} taken and saving` : "Stand in a corner so each photo shows two walls and the floor."}</span>
-          <button className="shutter" type="button" onClick={shoot} disabled={!ready} aria-label="Take photo" />
+          <div className="cam-last" aria-live="polite">
+            <AnimatePresence initial={false}>
+              {last && (
+                <motion.span
+                  key={taken}
+                  className="cam-print"
+                  initial={{ opacity: 0, scale: 1.8, y: -120, rotate: -14 }}
+                  animate={{ opacity: 1, scale: 1, y: 0, rotate: -5 }}
+                  exit={{ opacity: 0, transition: { duration: 0.1 } }}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element -- a local preview of the photo just taken */}
+                  <img src={last} alt="" />
+                </motion.span>
+              )}
+            </AnimatePresence>
+            {taken > 0 && <span className="cam-count">{taken}</span>}
+            <span className="sr">{taken ? `${plural(taken, "photo")} taken and saving` : ""}</span>
+          </div>
+          <motion.button className="shutter" type="button" onClick={shoot} disabled={!ready} aria-label="Take photo" whileTap={{ scale: 0.86 }}>
+            <i />
+          </motion.button>
           <button className="btn small" type="button" onClick={onClose}>Done</button>
         </div>
       </div>

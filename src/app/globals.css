@@ -53,6 +53,9 @@
   .rf-ring ul { grid-template-columns: minmax(0, 1fr); }
 }
 
+/* The printed record's page: outside the layers, because @page inside a layer is dropped when the CSS is built. */
+@page { size: A4; margin: 14mm 12mm; }
+
 @layer legacy {
 /*
  * ProofNest: neat polaroids on warm paper.
@@ -375,7 +378,7 @@ footer.foot::before { margin-bottom: 20px; }
 .room-head .count { font: 500 .8125rem var(--mono); color: var(--muted); }
 .room-head .spacer { flex: 1; }
 .pgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(256px, 1fr)); gap: 28px 22px; padding-top: 8px; }
-.addtile { display: grid; place-content: center; justify-items: center; gap: 4px; min-height: 200px; border: 1.5px dashed var(--rule-strong); border-radius: var(--radius-lg); background: transparent; color: var(--muted); cursor: pointer; text-align: center; padding: 16px; font: inherit; transition: border-color .15s, color .15s, background-color .15s; }
+.addtile { display: grid; place-content: center; justify-items: center; gap: 4px; min-height: 200px; align-self: start; aspect-ratio: 4 / 3.4; border: 1.5px dashed var(--rule-strong); border-radius: var(--radius-lg); background: transparent; color: var(--muted); cursor: pointer; text-align: center; padding: 16px; font: inherit; transition: border-color .15s, color .15s, background-color .15s; }
 .addtile:hover { border-color: var(--accent); color: var(--accent-ink); background: var(--sheet); }
 .addtile:active { background: var(--accent-soft); }
 .addtile .ic { width: 26px; height: 26px; margin-bottom: 4px; color: var(--accent); }
@@ -405,6 +408,7 @@ footer.foot::before { margin-bottom: 20px; }
 .seg button.c-damaged[aria-pressed="true"] { background: var(--bad); color: #fff; }
 .pbody input[type="text"] { min-height: 40px; padding: 8px 10px; font-size: .9375rem; }
 .pfoot { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; }
+.pfoot .proofline { min-width: 0; }
 .pmeta { font-size: .75rem; color: var(--muted); line-height: 1.5; overflow-wrap: anywhere; }
 .skel { display: block; height: 10px; border-radius: 2px; background: var(--rule); }
 .skeltile { border-radius: 3px; overflow: hidden; display: grid; gap: 8px; padding: 10px 10px 12px; background: var(--sheet); box-shadow: var(--print); }
@@ -533,7 +537,7 @@ footer.foot::before { margin-bottom: 20px; }
 .oc-state.warn { color: var(--warn); }
 
 /* owner's confirmation page (opened from a WhatsApp link, no account): neutral, the same document the tenant sees */
-body:has(.owner-page) .usermenu { display: none; }
+body:has(.owner-page) .usermenu, body:has(.auth-card) .usermenu { display: none; }
 .owner-page { padding-block: 32px 48px; display: grid; gap: var(--s5); max-width: 880px; }
 .op-head { display: grid; gap: 10px; padding-bottom: var(--s5); border-bottom: 1px solid var(--rule); }
 .op-head h1 { font-size: clamp(1.5rem, 4.4vw, 2.125rem); font-weight: 750; letter-spacing: -0.025em; }
@@ -651,7 +655,7 @@ body:has(.owner-page) .usermenu { display: none; }
   .roomsbar { position: sticky; top: 56px; z-index: 15; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-inline: -16px; padding: 8px 16px; background: color-mix(in srgb, var(--paper) 94%, transparent); backdrop-filter: blur(8px); border-bottom: 1px solid var(--rule); }
   .rchip, .addroom { flex: none; }
   .pgrid { grid-template-columns: minmax(0, 1fr); gap: 12px; }
-  .addtile { order: 1; grid-auto-flow: row; min-height: 0; padding: 14px 16px; background: var(--accent); border: 0; color: color-mix(in srgb, var(--on-accent) 80%, transparent); }
+  .addtile { order: 1; grid-auto-flow: row; min-height: 0; aspect-ratio: auto; padding: 14px 16px; background: var(--accent); border: 0; color: color-mix(in srgb, var(--on-accent) 80%, transparent); }
   .addtile:hover, .addtile:active { background: color-mix(in srgb, var(--accent) 86%, var(--ink)); color: var(--on-accent); }
   .addtile .ic, .addtile b { color: var(--on-accent); }
   .addtile b { font-size: 1.0625rem; }
@@ -676,11 +680,11 @@ body:has(.owner-page) .usermenu { display: none; }
 @media print {
   /* Print in light colours whatever the screen theme, since printers drop backgrounds. */
   :root { --paper: #F3F5F0; --sheet: #FFFFFF; --ink: #111712; --muted: #47504A; --rule: #CFD5CC; --rule-strong: #B3BBB0; --ok: #1E6B45; --ok-soft: #E3F1E8; --warn: #8F5600; --warn-soft: #FAF0DC; --bad: #B3261E; --bad-soft: #FBE9E7; --accent: #1E5A43; --seal: #4B3DA8; }
-  @page { size: A4; margin: 14mm 12mm; }
   html, body { background: #fff !important; color: var(--ink); font-size: 10pt; }
   .appbar, .foot, .no-print, .toast { display: none !important; }
   main, .report { padding: 0 !important; margin: 0 !important; max-width: none !important; }
-  .rp-doc { border: 0; padding: 0; gap: 16px; box-shadow: none; }
+  /* A hair of padding so right-hand borders sitting on the printable edge aren't clipped. */
+  .rp-doc { border: 0; padding: 0 3px; gap: 16px; box-shadow: none; }
   .seal, .rp-owner, .rp-photo { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .seal { animation: none !important; }
   .rp-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
@@ -703,8 +707,7 @@ body:has(.owner-page) .usermenu { display: none; }
 .cam-msg { position: absolute; max-width: 34ch; text-align: center; padding: 16px; font-size: .95rem; }
 .cam-bar { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 12px; padding: 14px 16px calc(14px + env(safe-area-inset-bottom, 0px)); background: rgba(0, 0, 0, .7); font-size: .84rem; }
 .cam-bar .btn { justify-self: end; background: #fff; color: #111; border-color: #fff; }
-.shutter { width: 68px; height: 68px; border-radius: 50%; border: 4px solid #fff; background: rgba(255, 255, 255, .25); cursor: pointer; transition: transform .1s; }
-.shutter:active { transform: scale(.92); }
+.shutter { width: 68px; height: 68px; border-radius: 50%; border: 4px solid #fff; background: rgba(255, 255, 255, .25); cursor: pointer; }
 .shutter:disabled { opacity: .4; cursor: not-allowed; }
 
 /* move-in record: evidence statement and certificate */
@@ -789,15 +792,31 @@ body:has(.owner-page) .usermenu { display: none; }
 .fm-link { display: grid; gap: 8px; }
 .fm-link code { font-family: var(--mono); font-size: .76rem; padding: 8px 10px; background: var(--paper); border-radius: 2px; overflow-wrap: anywhere; }
 
-/* account page */
-.account h1 { font-size: 1.6rem; margin: 4px 0 4px; }
-.acc-sec { margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--rule); display: grid; gap: 10px; }
-.acc-sec h2 { font-size: 1.1rem; }
-.acc-sec > .btn { justify-self: start; }
-.acc-numbers, .acc-history { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-.acc-numbers li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+/* account page: three cards (numbers, sign-ins, delete), a calm header */
+.account { display: grid; gap: var(--s4); }
+.acc-head { display: flex; align-items: center; gap: var(--s4); margin-bottom: var(--s3); }
+.acc-badge { flex: none; display: grid; place-items: center; width: 56px; height: 56px; border-radius: 14px; background: var(--accent); color: var(--on-accent); }
+.acc-badge .ic { width: 24px; height: 24px; }
+.acc-head h1 { font-size: 1.625rem; margin: 2px 0; overflow-wrap: anywhere; }
+.acc-head h1.mono { font-family: var(--mono); font-weight: 600; letter-spacing: -0.01em; }
+.acc-card { display: grid; gap: var(--s3); padding: 20px 22px; background: var(--sheet); border: 1px solid var(--rule); border-radius: var(--radius-lg); }
+.acc-card > .btn { justify-self: start; }
+.acc-card-head h2 { font-size: 1.125rem; }
+.acc-card-head p { margin-top: 4px; font-size: .875rem; color: var(--muted); max-width: 60ch; }
+.acc-card.danger { border-color: color-mix(in srgb, var(--bad) 35%, var(--rule)); }
+.acc-card.danger h2 { color: var(--bad); }
+.acc-numbers { list-style: none; margin: 0; padding: 0; display: grid; }
+.acc-numbers li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 10px 0; border-top: 1px solid var(--rule); }
+.acc-numbers li b { font-family: var(--mono); font-weight: 600; }
+.acc-numbers li .muted { font-size: .75rem; font-weight: 700; padding: 1px 9px; border-radius: 999px; background: var(--paper); }
 .acc-numbers li.off b { text-decoration: line-through; color: var(--muted); }
-.acc-history li { display: grid; gap: 1px; font-size: .9rem; padding-bottom: 8px; border-bottom: 1px solid var(--rule); }
+.acc-numbers li .btn { margin-left: auto; }
+.acc-history { list-style: none; margin: 0; padding: 0 0 0 14px; display: grid; border-left: 2px solid var(--rule); }
+.acc-history li { position: relative; display: grid; gap: 1px; padding: 8px 0 8px 12px; font-size: .875rem; }
+.acc-history li::before { content: ""; position: absolute; left: -20px; top: 14px; width: 8px; height: 8px; border-radius: 50%; background: var(--sheet); border: 2px solid var(--accent); }
+.acc-history li:first-child::before { background: var(--accent); }
+.acc-history span { color: var(--muted); }
+.acc-history time { font-size: .75rem; color: var(--muted); }
 .acc-add { display: grid; gap: 8px; max-width: 360px; }
 .acc-add .btn { justify-self: start; }
 .usermenu a.who { text-decoration: none; }
@@ -864,3 +883,41 @@ body:has(.owner-page) .usermenu { display: none; }
   .wz-cover dl, .wz-cover-next { display: none; }
   .wz-prints { display: none; }
 }
+
+/* phone: the camera for the next room, always under your thumb */
+.capbar { display: none; }
+@media (max-width: 640px) {
+  .capbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px)); background: color-mix(in srgb, var(--sheet) 94%, transparent); backdrop-filter: blur(10px); border-top: 1px solid var(--rule); }
+  .capbar span { font-size: .8125rem; color: var(--muted); white-space: nowrap; }
+  .capbar b { font-family: var(--mono); color: var(--ink); }
+  .capbar .btn { flex: 1; max-width: 240px; min-height: 48px; }
+  .case { padding-bottom: 110px; }
+  .savestate:not(.saved) { bottom: calc(84px + env(safe-area-inset-bottom, 0px)) !important; }
+  .toast { bottom: calc(92px + env(safe-area-inset-bottom, 0px)) !important; }
+  /* Shorter top on a phone: share buttons side by side, the day-code note in one sentence. */
+  .head-actions { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); width: 100%; gap: 6px; }
+  .head-actions .btn { white-space: normal; text-align: center; line-height: 1.2; font-size: .75rem; padding: 6px 4px; min-height: 44px; }
+  .head-actions .btn .ic { display: none; }
+  .pb-more { display: none; }
+  .panel-head { margin-bottom: var(--s4); }
+  .panel-head p { font-size: .875rem; }
+}
+
+/* camera: guides, a live stamp preview, a tactile shutter and the last shot as a little print */
+.cam-top b { font-size: 1.125rem; font-weight: 850; }
+.cam-guides { position: absolute; inset: 9% 7% 16%; pointer-events: none; }
+.cam-guides i { position: absolute; width: 26px; height: 26px; border: 2px solid rgba(255, 255, 255, .7); }
+.cam-guides i:nth-child(1) { left: 0; top: 0; border-right: 0; border-bottom: 0; }
+.cam-guides i:nth-child(2) { right: 0; top: 0; border-left: 0; border-bottom: 0; }
+.cam-guides i:nth-child(3) { left: 0; bottom: 0; border-right: 0; border-top: 0; }
+.cam-guides i:nth-child(4) { right: 0; bottom: 0; border-left: 0; border-top: 0; }
+.cam-tip { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); margin: 0; padding: 7px 12px; max-width: min(90%, 40ch); border-radius: 999px; background: rgba(0, 0, 0, .55); font-size: .8125rem; text-align: center; }
+.cam-stamp { position: absolute; left: 0; right: 0; bottom: 0; margin: 0; padding: 6px 10px; background: rgba(0, 0, 0, .62); font: 600 .6875rem/1.3 var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cam-bar { grid-template-columns: 1fr auto 1fr; }
+.cam-last { position: relative; justify-self: start; width: 56px; height: 56px; }
+.cam-print { position: absolute; inset: 0; padding: 3px 3px 9px; background: #fffdf8; border-radius: 2px; box-shadow: 0 6px 16px rgba(0, 0, 0, .45); }
+.cam-print img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.cam-count { position: absolute; right: -8px; top: -8px; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 999px; background: var(--accent); color: #fff; font: 700 .75rem/22px var(--mono); text-align: center; }
+.shutter { display: grid; place-items: center; width: 74px; height: 74px; padding: 0; border: 4px solid #fff; background: transparent; }
+.shutter i { width: 56px; height: 56px; border-radius: 50%; background: #fff; transition: background-color .15s; }
+.shutter:hover i { background: #f1ede3; }

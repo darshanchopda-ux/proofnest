@@ -8,7 +8,7 @@ import { Icon } from "@/components/Icon";
 import { useToast } from "@/components/Toast";
 import { recordPhoto, updateFlat } from "@/app/flats/actions";
 import { useDialogFocus } from "@/components/useDialogFocus";
-import { isMoveOut, nextAction, stepStates, summaryText, totals, withRecordChanged, type NextButton } from "@/lib/guidance";
+import { isMoveOut, moveOutRooms, nextAction, roomStats, stepStates, summaryText, totals, withRecordChanged, type NextButton } from "@/lib/guidance";
 import { depositMonths, fmtDate, money, plural, refundInfo } from "@/lib/format";
 import { flushSaves, savesInFlight, scheduleSave, sendOnUnload, subscribeSaves } from "@/lib/pending-saves";
 import { exifDate, safeFileName, sha256Hex, toJpeg, UPLOADABLE } from "@/lib/photo-client";
@@ -457,6 +457,7 @@ export function FlatWorkspace({ initialFlat, initialStep }: { initialFlat: FlatD
       )}
       </AnimatePresence>
       <AnimatePresence>{zoom && <Lightbox key="zoom" photo={zoom} onClose={() => setZoom(null)} />}</AnimatePresence>
+      <CaptureBar flat={flat} step={step} hidden={!!camera || drawerOpen || agreementOpen || !!zoom} onCamera={openCamera} />
     </div>
   );
 }
@@ -527,6 +528,34 @@ function CaseHead({ flat, reading, onEdit, onAgreement }: { flat: FlatDTO; readi
         </div>
       </dl>
     </section>
+  );
+}
+
+/**
+ * On a phone, the camera for the next room still to photograph stays under your thumb at the bottom of the screen,
+ * so you never scroll back up to find it while walking through the flat.
+ */
+function CaptureBar({ flat, step, hidden, onCamera }: { flat: FlatDTO; step: Step; hidden: boolean; onCamera: (room: string, phase?: PhotoPhase) => void }) {
+  const out = step === "moveout";
+  const rooms = out ? moveOutRooms(flat).map((r) => ({ name: r.name, done: r.after > 0 })) : roomStats(flat).map((r) => ({ name: r.name, done: r.count > 0 }));
+  // Same room the "what to do next" box suggests, so the two never disagree; otherwise the first room still to do.
+  const suggested = nextAction(flat).primary;
+  const pick = suggested?.kind === "upload" && (suggested.phase === "moveout") === out ? suggested.room : null;
+  const next = (pick && rooms.find((r) => r.name === pick && !r.done)) || rooms.find((r) => !r.done);
+  const show = (step === "record" || out) && !!next && !hidden;
+  return (
+    <AnimatePresence>
+      {show && (
+        <motion.div className="capbar" initial={{ y: 90 }} animate={{ y: 0 }} exit={{ y: 90 }}>
+          <span>
+            <b>{rooms.filter((r) => r.done).length}</b> of {rooms.length} rooms
+          </span>
+          <button className="btn accent" type="button" onClick={() => onCamera(next.name, out ? "moveout" : "movein")}>
+            <Icon name="camera" small />Take {next.name} photos
+          </button>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }
 

@@ -58,10 +58,6 @@ export function BackupPhones({ numbers, canSend }: { numbers: Number[]; canSend:
           </li>
         ))}
       </ul>
-      <p className="hint">
-        Lost your phone or changed your number? Add a backup number now. If a number is lost, switch it off: it can&apos;t sign in any more, even if
-        the operator gives it to someone else, and every device is signed out.
-      </p>
       {!adding ? (
         <button className="btn small ghost" type="button" onClick={() => setAdding(true)} disabled={!canSend}>Add a backup number</button>
       ) : !sentTo ? (

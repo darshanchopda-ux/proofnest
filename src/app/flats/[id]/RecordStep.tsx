@@ -80,8 +80,8 @@ export function RecordStep({ flat, setFlat, pending, freshIds, onCamera, onEarli
       <div className="proofbar">
         <DayCode code={flat.dayCode} />
         <p>
-          <b>Today&apos;s code is <code>{flat.dayCode}</code>.</b> ProofNest&apos;s camera prints it, with the room and time, on every photo. Gallery
-          photos can&apos;t be added, so nobody can say yours were edited or made with AI.
+          <b>Today&apos;s code is <code>{flat.dayCode}</code>.</b> ProofNest&apos;s camera prints it, with the room and time, on every photo.
+          <span className="pb-more"> Gallery photos can&apos;t be added, so nobody can say yours were edited or made with AI.</span>
         </p>
       </div>
 
@@ -364,7 +364,7 @@ export function PhotoCard({
             {photo.sha256 && <><br />#{photo.sha256.slice(0, 12)}</>}
           </span>
           <HoldButton
-            className="kk h-9 min-w-0 px-3 text-xs"
+            className="kk h-9 min-w-[8.5rem] flex-none px-3 text-xs"
             onHoldComplete={remove}
             resetAfter={0}
             completeLabel="Deleting…"
