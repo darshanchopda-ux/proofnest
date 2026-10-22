@@ -4,13 +4,13 @@ import { and, asc, eq, isNotNull, sql } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
 import { db } from "@/db";
-import { agreements, charges, flats, ownerReviews, photos } from "@/db/schema";
+import { agreements, charges, flats, ownerReviews, photos, refundEntries } from "@/db/schema";
 import { removeBlobs, removeFolder } from "@/lib/blobs";
 import { isCurrentDayCode, sealMissing, sealPhoto } from "@/lib/evidence";
 import { isUuid, requireUser } from "@/lib/dal";
-import { EXAMPLE_CONTENT_TYPE, getOwnedFlat, toChargeDTO, toPhotoDTO } from "@/lib/flats";
+import { EXAMPLE_CONTENT_TYPE, getOwnedFlat, toChargeDTO, toPhotoDTO, toRefundDTO } from "@/lib/flats";
 import { isStale, latestReview, newReviewToken, recordHash, snapshotPhotos, toOwnerReviewDTO } from "@/lib/owner-review";
-import type { ChargeDTO, Condition, Decision, FlatPatch, NewFlatInput, OwnerReviewDTO, PhotoDTO } from "@/lib/types";
+import { LETTER_LANGUAGES, type ChargeDTO, type Condition, type Decision, type FlatPatch, type NewFlatInput, type OwnerReviewDTO, type PhotoDTO, type RefundDTO } from "@/lib/types";
 
 export type Result<T = null> = { ok: true; data: T } | { ok: false; error: string };
 
@@ -174,6 +174,11 @@ export async function updateFlat(flatId: string, patch: FlatPatch): Promise<Resu
     if (values.deductionsText) values.stage = "moveout";
   }
   if ("letter" in patch) values.letter = String(patch.letter ?? "").slice(0, 20000);
+  if ("depositPaidOn" in patch) values.depositPaidOn = isoDay(patch.depositPaidOn);
+  if ("depositPaidTo" in patch) values.depositPaidTo = clean(patch.depositPaidTo, 120);
+  if ("depositRef" in patch) values.depositRef = clean(patch.depositRef, 120);
+  if ("depositHolder" in patch) values.depositHolder = clean(patch.depositHolder, 160);
+  if ("letterLanguage" in patch) values.letterLanguage = LETTER_LANGUAGES.includes(String(patch.letterLanguage)) ? String(patch.letterLanguage) : "English";
 
   await db.update(flats).set(values).where(and(eq(flats.id, flat.id), eq(flats.userId, user.id)));
   return { ok: true, data: null };
@@ -318,6 +323,30 @@ export async function setChargeDecision(flatId: string, chargeId: string, decisi
   if (!flat || !isUuid(chargeId)) return NOT_FOUND;
   if (!DECISION_VALUES.includes(decision)) return { ok: false, error: "Pick one of the listed decisions." };
   await db.update(charges).set({ decision }).where(and(eq(charges.id, chargeId), eq(charges.flatId, flat.id)));
+  return { ok: true, data: null };
+}
+
+/** Records money received back from the owner, or an amount they say they're keeping. */
+export async function addRefundEntry(flatId: string, input: { kind: string; amount: unknown; on: unknown; note: unknown }): Promise<Result<RefundDTO>> {
+  const user = await requireUser();
+  const flat = await getOwnedFlat(user.id, flatId);
+  if (!flat) return NOT_FOUND;
+  const amount = rupees(input.amount);
+  if (!amount || Number(amount) <= 0) return { ok: false, error: "Enter the amount in rupees." };
+  const [count] = await db.select({ n: sql<number>`count(*)::int` }).from(refundEntries).where(eq(refundEntries.flatId, flat.id));
+  if ((count?.n ?? 0) >= 50) return { ok: false, error: "That's the most entries one flat can have." };
+  const [row] = await db
+    .insert(refundEntries)
+    .values({ flatId: flat.id, kind: input.kind === "held" ? "held" : "received", amount, on: isoDay(input.on), note: clean(input.note, 200) })
+    .returning();
+  return { ok: true, data: toRefundDTO(row) };
+}
+
+export async function deleteRefundEntry(flatId: string, entryId: string): Promise<Result> {
+  const user = await requireUser();
+  const flat = await getOwnedFlat(user.id, flatId);
+  if (!flat || !isUuid(entryId)) return NOT_FOUND;
+  await db.delete(refundEntries).where(and(eq(refundEntries.id, entryId), eq(refundEntries.flatId, flat.id)));
   return { ok: true, data: null };
 }
 

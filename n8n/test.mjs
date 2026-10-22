@@ -73,6 +73,11 @@ const letter = runNode("letter-parse.js", gemini("Dear Mr. Sharma,"))[0].json;
 assert.equal(letter.ok, true);
 assert.equal(letter.letter, "Dear Mr. Sharma,");
 assert.equal(runNode("letter-parse.js", gemini("Dear", { candidates: [{ content: { parts: [{ text: "Dear" }] }, finishReason: "MAX_TOKENS" }] }))[0].json.truncated, true);
+const [hindiReq] = runNode("letter-build.js", { body: { ...payload, language: "Hindi", refunds: [{ kind: "received", amount: 50000, on: "1 Oct 2026" }], charges: [] } });
+assert.match(hindiReq.json.request.contents[0].parts[0].text, /Write a letter in Hindi/);
+assert.match(hindiReq.json.request.contents[0].parts[0].text, /Already refunded to the tenant: ₹50,000 on 1 Oct 2026/);
+const [oddReq] = runNode("letter-build.js", { body: { ...payload, language: "Klingon", charges: [] } });
+assert.match(oddReq.json.request.contents[0].parts[0].text, /Write a letter in Indian English/);
 console.log("letter-build and letter-parse ok");
 
 // agreement-build and agreement-parse

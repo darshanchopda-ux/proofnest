@@ -8,7 +8,19 @@ import { useDialogFocus } from "@/components/useDialogFocus";
 import { depositMonths } from "@/lib/format";
 import type { FlatDTO, FlatPatch } from "@/lib/types";
 
-type Field = "address" | "ownerName" | "tenantName" | "moveIn" | "keysHandedOver" | "monthlyRent" | "deposit" | "refundDays";
+type Field =
+  | "address"
+  | "ownerName"
+  | "tenantName"
+  | "moveIn"
+  | "keysHandedOver"
+  | "monthlyRent"
+  | "deposit"
+  | "refundDays"
+  | "depositPaidOn"
+  | "depositPaidTo"
+  | "depositRef"
+  | "depositHolder";
 
 export function DetailsDrawer({
   flat,
@@ -38,13 +50,14 @@ export function DetailsDrawer({
         <input
           id={`f-${field}`}
           type={type}
-          maxLength={type === "text" ? (field === "address" ? 200 : 120) : undefined}
+          maxLength={type === "text" ? (field === "address" || field === "depositHolder" ? 200 : 120) : undefined}
           value={raw == null ? "" : String(raw)}
           min={type === "number" ? 0 : undefined}
           inputMode={type === "number" ? "numeric" : undefined}
           onChange={(e) => {
             const value = e.target.value;
             if (field === "refundDays") patchFlat({ refundDays: value === "" ? null : Number(value) });
+            else if (field === "depositPaidTo" || field === "depositRef" || field === "depositHolder") patchFlat({ [field]: value } as FlatPatch);
             else patchFlat({ [field]: value === "" && field !== "address" ? null : value } as FlatPatch);
           }}
         />
@@ -94,6 +107,23 @@ export function DetailsDrawer({
             "number",
             "Check the refund clause in your rent agreement. Enter 0 if it's due on the day you hand over the keys.",
           )}
+          <div className="sec">
+            <h3 className="mini">Deposit receipt</h3>
+            <p className="hint" style={{ margin: 0 }}>
+              Proof you paid the deposit. Keep the bank or UPI screenshot too; your letter mentions these details.
+            </p>
+            <div className="pair">
+              {input("depositPaidOn", "Paid on", "date")}
+              {input("depositPaidTo", "Paid to", "text")}
+            </div>
+            {input("depositRef", "UPI, bank or cheque reference", "text")}
+            {input(
+              "depositHolder",
+              "Who holds the deposit now",
+              "text",
+              "Leave empty if it's the owner. If the flat was sold, the owner lives abroad or a broker took the deposit, write who has it now.",
+            )}
+          </div>
           <div className="sec">
             <p className="hint" style={{ margin: 0 }}>Deleting removes this flat and its photos for good.</p>
             <button

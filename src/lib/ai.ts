@@ -34,6 +34,10 @@ export function flatFacts(flat: Flat) {
     keysHandedOver: flat.keysHandedOver,
     monthlyRent: flat.monthlyRent == null ? null : Number(flat.monthlyRent),
     deposit: flat.deposit == null ? null : Number(flat.deposit),
+    depositPaidOn: flat.depositPaidOn,
+    depositPaidTo: flat.depositPaidTo,
+    depositRef: flat.depositRef,
+    depositHolder: flat.depositHolder,
   };
 }
 

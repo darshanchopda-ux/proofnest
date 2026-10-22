@@ -556,3 +556,24 @@ body:has(.owner-page) .usermenu { display: none; }
 .row-reason.flagged { text-decoration: line-through; opacity: .7; }
 .row-flag { margin: 2px 0 0; font-size: .84rem; color: var(--muted); }
 .row-flag .linkbtn { font-size: .84rem; padding: 0; }
+
+/* letter language and refund tracker */
+.lang-pick { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 14px; }
+.lang-pick .lab { margin: 0; }
+.lang-pick select { width: auto; }
+.lang-pick .hint { margin: 0; }
+.refunds { margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--rule); display: grid; gap: 10px; }
+.refunds h3 { font-size: 1.05rem; }
+.rf-sum { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0; }
+.rf-sum div { padding: 10px 12px; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--sheet); }
+.rf-sum dt { font-size: .78rem; color: var(--muted); }
+.rf-sum dd { margin: 2px 0 0; font-weight: 700; font-size: 1.05rem; }
+.rf-sum .owed dd { color: var(--warn); }
+.rf-sum .paid dd { color: var(--ok); }
+.rf-late { margin: 0; padding: 9px 12px; border-radius: var(--radius); background: var(--warn-soft); font-size: .88rem; }
+.rf-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.rf-list li { display: flex; align-items: center; gap: 10px; font-size: .9rem; }
+.rf-list .muted { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.rf-add { display: grid; grid-template-columns: 1.1fr .8fr .9fr 1.4fr auto; gap: 8px; }
+@media (max-width: 640px) { .rf-add { grid-template-columns: 1fr 1fr; } .rf-add .btn { grid-column: span 2; } .rf-sum dd { font-size: .95rem; } }
+.chip.ok { color: var(--ok); background: var(--ok-soft); }

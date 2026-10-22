@@ -402,7 +402,7 @@ export function FlatWorkspace({ initialFlat, initialStep }: { initialFlat: FlatD
             onOpenAgreement={() => setAgreementOpen(true)}
           />
         )}
-        {step === "letter" && <LetterStep flat={flat} patchFlat={patchFlat} onStep={goStep} onCopy={copyLetter} />}
+        {step === "letter" && <LetterStep flat={flat} setFlat={setFlat} patchFlat={patchFlat} onStep={goStep} onCopy={copyLetter} />}
       </section>
       </div>
       {drawerOpen && <DetailsDrawer flat={flat} patchFlat={patchFlat} onClose={() => setDrawerOpen(false)} />}

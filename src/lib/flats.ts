@@ -1,8 +1,8 @@
 import "server-only";
 import { and, asc, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { agreements, charges, flats, photos, type Agreement, type Charge, type Flat, type Photo } from "@/db/schema";
-import type { AgreementDTO, ChargeDTO, FlatDTO, PhotoDTO } from "@/lib/types";
+import { agreements, charges, flats, photos, refundEntries, type Agreement, type Charge, type Flat, type Photo, type RefundEntry } from "@/db/schema";
+import type { AgreementDTO, ChargeDTO, FlatDTO, PhotoDTO, RefundDTO } from "@/lib/types";
 import { isUuid } from "@/lib/dal";
 import { dayCode } from "@/lib/evidence";
 import { latestAnswered, latestReview, toOwnerReviewDTO } from "@/lib/owner-review";
@@ -61,6 +61,10 @@ export function toChargeDTO(c: Charge): ChargeDTO {
   };
 }
 
+export function toRefundDTO(r: RefundEntry): RefundDTO {
+  return { id: r.id, kind: r.kind === "held" ? "held" : "received", amount: Number(r.amount) || 0, on: r.on, note: r.note };
+}
+
 export function toAgreementDTO(a: Agreement): AgreementDTO {
   return {
     files: a.files.map((f, i) => ({ name: f.name, contentType: f.contentType, sizeBytes: f.sizeBytes, href: `/api/flats/${a.flatId}/agreement/files/${i}` })),
@@ -82,7 +86,7 @@ export async function listCharges(flatId: string): Promise<ChargeDTO[]> {
 export async function getFlatDTO(userId: string, flatId: string): Promise<FlatDTO | null> {
   const flat = await getOwnedFlat(userId, flatId);
   if (!flat) return null;
-  const [allPhotos, agreementRows, chargeList, review, answered, outReview, outAnswered] = await Promise.all([
+  const [allPhotos, agreementRows, chargeList, review, answered, outReview, outAnswered, refundRows] = await Promise.all([
     db.select().from(photos).where(eq(photos.flatId, flat.id)).orderBy(asc(photos.n)),
     db.select().from(agreements).where(eq(agreements.flatId, flat.id)).limit(1),
     listCharges(flat.id),
@@ -90,6 +94,7 @@ export async function getFlatDTO(userId: string, flatId: string): Promise<FlatDT
     latestAnswered(flat.id, "movein"),
     latestReview(flat.id, "moveout"),
     latestAnswered(flat.id, "moveout"),
+    db.select().from(refundEntries).where(eq(refundEntries.flatId, flat.id)).orderBy(asc(refundEntries.on), asc(refundEntries.createdAt)),
   ]);
   const photoRows = allPhotos.filter((p) => p.phase !== "moveout");
   const outRows = allPhotos.filter((p) => p.phase === "moveout");
@@ -119,5 +124,11 @@ export async function getFlatDTO(userId: string, flatId: string): Promise<FlatDT
     moveOutAnswer: outAnswered ? toOwnerReviewDTO(outAnswered, outRows) : null,
     charges: chargeList,
     analyzedAt: flat.analyzedAt ? flat.analyzedAt.toISOString() : null,
+    depositPaidOn: flat.depositPaidOn,
+    depositPaidTo: flat.depositPaidTo,
+    depositRef: flat.depositRef,
+    depositHolder: flat.depositHolder,
+    letterLanguage: flat.letterLanguage,
+    refunds: refundRows.map(toRefundDTO),
   };
 }

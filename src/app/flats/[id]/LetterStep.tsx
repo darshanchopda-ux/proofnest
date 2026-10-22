@@ -1,21 +1,23 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { Icon } from "@/components/Icon";
 import { useToast } from "@/components/Toast";
 import { refundAsk, totals } from "@/lib/guidance";
 import { money } from "@/lib/format";
 import { templateLetter } from "@/lib/letter-template";
-import type { FlatDTO, FlatPatch, Step } from "@/lib/types";
+import { LETTER_LANGUAGES, type FlatDTO, type FlatPatch, type Step } from "@/lib/types";
+import { RefundTracker } from "./RefundTracker";
 
 type Props = {
   flat: FlatDTO;
+  setFlat: Dispatch<SetStateAction<FlatDTO>>;
   patchFlat: (patch: FlatPatch, delay?: number) => void;
   onStep: (s: Step) => void;
   onCopy: () => void;
 };
 
-export function LetterStep({ flat, patchFlat, onStep, onCopy }: Props) {
+export function LetterStep({ flat, setFlat, patchFlat, onStep, onCopy }: Props) {
   const toast = useToast();
   const [writing, setWriting] = useState(false);
   const [status, setStatus] = useState<{ text: string; kind: "" | "good" | "err" }>({ text: "", kind: "" });
@@ -113,6 +115,14 @@ export function LetterStep({ flat, patchFlat, onStep, onCopy }: Props) {
         <div className="notice" style={{ marginBottom: 16 }}>Add your security deposit in Edit details to see exactly how much to ask for.</div>
       )}
 
+      <div className="lang-pick">
+        <label className="lab" htmlFor="f-lang">Letter language</label>
+        <select id="f-lang" value={flat.letterLanguage} onChange={(e) => patchFlat({ letterLanguage: e.target.value }, 0)}>
+          {LETTER_LANGUAGES.map((l) => <option key={l}>{l}</option>)}
+        </select>
+        {flat.letterLanguage !== "English" && <span className="hint">Write with AI uses {flat.letterLanguage}; Build from template is in English.</span>}
+      </div>
+
       <div className="actions" style={{ margin: "0 0 12px" }}>
         <button className={`btn accent ${armed === "ai" ? "armed" : ""}`} type="button" onClick={writeWithAI} disabled={writing}>
           {armed === "ai" ? "Replace current letter?" : "Write with AI"}
@@ -141,6 +151,8 @@ export function LetterStep({ flat, patchFlat, onStep, onCopy }: Props) {
         <button className="btn small" type="button" onClick={onCopy} disabled={!hasLetter}><Icon name="copy" small />Copy letter</button>
         <button className="btn small ghost" type="button" onClick={download} disabled={!hasLetter}><Icon name="download" small />Download .txt</button>
       </div>
+      <RefundTracker flat={flat} setFlat={setFlat} />
+
       <p className="hint" style={{ marginTop: 12 }}>
         Legal information, not legal advice. Check it against your rent agreement before you send it on WhatsApp or email. ProofNest never
         sends anything to your owner. Write with AI uses Google&apos;s Gemini free tier, which may use what you send to improve Google&apos;s products.

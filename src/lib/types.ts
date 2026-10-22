@@ -95,7 +95,21 @@ export type FlatDTO = {
   moveOutAnswer: OwnerReviewDTO | null;
   charges: ChargeDTO[];
   analyzedAt: string | null;
+  /** The deposit receipt: when and to whom it was paid, the UPI or cheque reference, and who holds it now. */
+  depositPaidOn: string | null;
+  depositPaidTo: string;
+  depositRef: string;
+  depositHolder: string;
+  /** Language the AI writes the refund letter in. */
+  letterLanguage: string;
+  /** Money received back, and amounts the owner says they're keeping. */
+  refunds: RefundDTO[];
 };
+
+export type RefundDTO = { id: string; kind: "received" | "held"; amount: number; on: string | null; note: string };
+
+/** Languages the refund letter can be written in. */
+export const LETTER_LANGUAGES = ["English", "Hindi", "Marathi", "Kannada", "Tamil", "Telugu", "Bengali", "Gujarati", "Malayalam", "Punjabi"];
 
 export type AgreementFileDTO = {
   name: string;
@@ -141,7 +155,22 @@ export type OwnerReviewDTO = {
 export type FlatPatch = Partial<
   Pick<
     FlatDTO,
-    "address" | "ownerName" | "tenantName" | "moveIn" | "keysHandedOver" | "monthlyRent" | "deposit" | "refundDays" | "evidenceNotes" | "deductionsText" | "letter"
+    | "address"
+    | "ownerName"
+    | "tenantName"
+    | "moveIn"
+    | "keysHandedOver"
+    | "monthlyRent"
+    | "deposit"
+    | "refundDays"
+    | "evidenceNotes"
+    | "deductionsText"
+    | "letter"
+    | "depositPaidOn"
+    | "depositPaidTo"
+    | "depositRef"
+    | "depositHolder"
+    | "letterLanguage"
   >
 >;
 

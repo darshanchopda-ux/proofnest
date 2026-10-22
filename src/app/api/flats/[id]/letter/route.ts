@@ -1,7 +1,7 @@
 import { asc, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { flats, photos } from "@/db/schema";
+import { flats, photos, refundEntries } from "@/db/schema";
 import { agreementSummary, aiOptions, finishRun, flatFacts, overRunLimit, photoMeta, startRun } from "@/lib/ai";
 import { getCurrentUser } from "@/lib/dal";
 import { getOwnedFlat, listCharges } from "@/lib/flats";
@@ -39,6 +39,13 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     citedPhotos: allPhotos.filter((p) => cited.has(p.n)).map(photoMeta),
     evidence: await evidenceWithOwnerReview(flat.id, flat.evidenceNotes),
     agreement: await agreementSummary(flat.id),
+    language: flat.letterLanguage || "English",
+    refunds: (await db.select().from(refundEntries).where(eq(refundEntries.flatId, flat.id)).orderBy(asc(refundEntries.on))).map((r) => ({
+      kind: r.kind,
+      amount: Number(r.amount),
+      on: r.on ? fmtDate(r.on) : null,
+      note: r.note,
+    })),
   });
   await finishRun(run, reply.ok ? { ok: true, model: reply.model, usage: reply.usage } : { ok: false, error: reply.error, model: reply.model, usage: reply.usage });
   if (!reply.ok) {
