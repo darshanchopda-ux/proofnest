@@ -8,6 +8,7 @@ import { money } from "@/lib/format";
 import { templateLetter } from "@/lib/letter-template";
 import { LETTER_LANGUAGES, type FlatDTO, type FlatPatch, type Step } from "@/lib/types";
 import { RefundTracker } from "./RefundTracker";
+import { Rupees } from "@/components/motion";
 
 type Props = {
   flat: FlatDTO;
@@ -106,7 +107,7 @@ export function LetterStep({ flat, setFlat, patchFlat, onStep, onCopy }: Props) 
       {ask != null ? (
         <div className="askcard">
           <span>You&apos;re asking for</span>
-          <b>{money(ask)}</b>
+          <b><Rupees value={ask} /></b>
           <small>
             Deposit {money(deposit)}
             {t.accept ? ` minus ${money(t.accept)} you accept` : ", nothing accepted"}

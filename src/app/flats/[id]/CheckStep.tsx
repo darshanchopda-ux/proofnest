@@ -1,6 +1,8 @@
 "use client";
 
+import { motion } from "motion/react";
 import { useEffect, useState, type Dispatch, type FormEvent, type SetStateAction } from "react";
+import { Rupees } from "@/components/motion";
 import { Icon } from "@/components/Icon";
 import { useToast } from "@/components/Toast";
 import { addCharge, deleteCharge, flagCharge, setChargeDecision } from "@/app/flats/actions";
@@ -216,10 +218,10 @@ export function CheckStep({ flat, setFlat, patchFlat, check, screenshot, setScre
       ) : flat.charges.length ? (
         <div className={check.replay ? "enter" : ""} key={check.replay}>
           <div className="summary">
-            <div><span>Charged</span><b>{money(t.all)}</b></div>
-            <div className="s-ok"><span>Disputing</span><b>{money(t.dispute)}</b></div>
-            <div className="s-check"><span>Ask to explain</span><b>{money(t.check)}</b></div>
-            <div><span>Accepting</span><b>{money(t.accept)}</b></div>
+            <div><span>Charged</span><b><Rupees value={t.all} /></b></div>
+            <div className="s-ok"><span>Disputing</span><b><Rupees value={t.dispute} /></b></div>
+            <div className="s-check"><span>Ask to explain</span><b><Rupees value={t.check} /></b></div>
+            <div><span>Accepting</span><b><Rupees value={t.accept} /></b></div>
           </div>
           <div className="rows">
             {flat.charges.map((c, i) => (
@@ -268,7 +270,13 @@ function ChargeRow({
   const [leaving, setLeaving] = useState(false);
   const low = c.confidence != null && c.confidence < 0.8 && c.aiVerdict !== "check";
   return (
-    <div className={`row st d-${c.decision} ${fresh ? "pop" : ""} ${leaving ? "leaving" : ""}`} style={{ ["--i" as string]: index }}>
+    <motion.div
+      layout="position"
+      className={`row d-${c.decision} ${leaving ? "leaving" : ""}`}
+      // Rows arrive one after another when the AI check finishes; a charge added by hand slides in on its own.
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0, transition: { delay: fresh ? 0 : Math.min(index, 8) * 0.06 } }}
+    >
       <div className="row-top">
         <span className="row-item">{c.item}</span>
         <span className="row-amt">{money(c.amount)}</span>
@@ -325,6 +333,6 @@ function ChargeRow({
           {armed ? "Sure?" : <Icon name="trash" small />}
         </button>
       </div>
-    </div>
+    </motion.div>
   );
 }

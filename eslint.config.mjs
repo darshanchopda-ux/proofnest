@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Third-party components copied from the Kokonut UI registry, kept as published (see the note in each file).
+    "src/components/kokonutui/**",
   ]),
 ]);
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { motion } from "motion/react";
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { Icon } from "@/components/Icon";
 import { useToast } from "@/components/Toast";
@@ -42,8 +43,8 @@ export function AgreementDrawer({ flat, setFlat, patchFlat, read, onRead, onRetr
 
   return (
     <>
-      <div className="overlay" onClick={onClose} />
-      <aside className="drawer wide" ref={panel} role="dialog" aria-modal="true" aria-labelledby="ag-title">
+      <motion.div className="overlay" onClick={onClose} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} />
+      <motion.aside initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%", transition: { duration: 0.2 } }} className="drawer wide" ref={panel} role="dialog" aria-modal="true" aria-labelledby="ag-title">
         <div className="dr-head">
           <h2 id="ag-title" style={{ fontSize: "1.3rem" }}>Rent agreement</h2>
           <button ref={closeRef} className="iconbtn" type="button" onClick={onClose} aria-label="Close"><Icon name="close" small /></button>
@@ -57,7 +58,7 @@ export function AgreementDrawer({ flat, setFlat, patchFlat, read, onRead, onRetr
             <Upload read={read} onRead={onRead} onRetry={onRetry} />
           )}
         </div>
-      </aside>
+      </motion.aside>
     </>
   );
 }

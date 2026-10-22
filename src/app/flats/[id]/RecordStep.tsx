@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { motion } from "motion/react";
 import { useState, type Dispatch, type FormEvent, type SetStateAction } from "react";
 import { Icon } from "@/components/Icon";
 import { useToast } from "@/components/Toast";
@@ -14,6 +15,8 @@ const fmtTime = (iso: string) => new Date(iso).toLocaleTimeString("en-IN", { hou
 import { daysLate, isEarlier } from "@/lib/photo-labels";
 import { CONDITIONS, type Condition, type FlatDTO, type FlatPatch, type PhotoDTO } from "@/lib/types";
 import { EvidenceButton } from "@/components/EvidenceButton";
+import HoldButton from "@/components/kokonutui/hold-button";
+import { DayCode } from "@/components/DayCode";
 import { OwnerConfirm } from "./OwnerConfirm";
 
 type Props = {
@@ -75,7 +78,7 @@ export function RecordStep({ flat, setFlat, pending, freshIds, onCamera, onEarli
       </div>
 
       <div className="proofbar">
-        <span className="codechip" aria-hidden="true">{flat.dayCode}</span>
+        <DayCode code={flat.dayCode} />
         <p>
           <b>Today&apos;s code is <code>{flat.dayCode}</code>.</b> ProofNest&apos;s camera prints it, with the room and time, on every photo. Gallery
           photos can&apos;t be added, so nobody can say yours were edited or made with AI.
@@ -252,7 +255,9 @@ export function PhotoCard({
   onZoom: (photo: PhotoDTO) => void;
 }) {
   const toast = useToast();
-  const [armed, setArmed] = useState(false);
+  // The stamp presses on only when a photo becomes sealed while you watch, not for photos sealed before the page opened.
+  const [sealedAtOpen] = useState(() => photo.capture === "live" && !!photo.timestampedAt);
+  const press = sealedAtOpen ? false : { scale: 1.7, opacity: 0, rotate: -14 };
   const [leaving, setLeaving] = useState(false);
 
   const list = photo.phase === "moveout" ? "moveOutPhotos" : "photos";
@@ -280,12 +285,8 @@ export function PhotoCard({
     scheduleSave(`photo:${photo.id}`, 600, () => save({ note }), () => sendOnUnload(`/api/flats/${flatId}/save`, { photo: { id: photo.id, note } }));
   }
 
+  /** Runs once the delete button has been held down long enough, so a stray tap never deletes evidence. */
   async function remove() {
-    if (!armed) {
-      setArmed(true);
-      setTimeout(() => setArmed(false), 3500);
-      return;
-    }
     setLeaving(true);
     let result: Awaited<ReturnType<typeof deletePhoto>>;
     try {
@@ -305,7 +306,13 @@ export function PhotoCard({
   const sealed = photo.capture === "live" && !!photo.timestampedAt;
 
   return (
-    <figure className={`pcard ${photo.condition === "damaged" ? "cond-damaged" : ""} ${fresh ? "pop" : ""} ${leaving ? "leaving" : ""}`}>
+    <motion.figure
+      layout="position"
+      className={`pcard ${photo.condition === "damaged" ? "cond-damaged" : ""} ${leaving ? "leaving" : ""}`}
+      // A new photo drops into its room like a print laid on the table.
+      initial={fresh ? { opacity: 0, y: -46, rotate: -5, scale: 1.05 } : false}
+      animate={{ opacity: 1, y: 0, rotate: 0, scale: 1 }}
+    >
       <div className="print">
       <span className="tape" aria-hidden="true" />
       <button className="pimg" type="button" onClick={() => onZoom(photo)} aria-label={`Enlarge photo P${photo.n}`}>
@@ -323,11 +330,13 @@ export function PhotoCard({
           <b className="mono">P{photo.n}</b> {photo.room}
         </span>
         {sealed ? (
-          <span className="stamp" title={`Timestamped by ${photo.timestampBy}`}>Sealed{photo.timestampedAt ? ` · ${fmtTime(photo.timestampedAt)}` : ""}</span>
+          <motion.span key="sealed" className="stamp" title={`Timestamped by ${photo.timestampBy}`} initial={press} animate={{ scale: 1, opacity: 1, rotate: -2 }}>
+            Sealed{photo.timestampedAt ? ` · ${fmtTime(photo.timestampedAt)}` : ""}
+          </motion.span>
         ) : isEarlier(photo) ? (
           <span className="stamp u">Not verified</span>
         ) : photo.capture === "live" ? (
-          <span className="stamp p">Sealing…</span>
+          <motion.span key="sealing" className="stamp p" animate={{ opacity: [0.55, 1, 0.55] }} transition={{ duration: 1.6, repeat: Infinity }}>Sealing…</motion.span>
         ) : null}
       </figcaption>
       </div>
@@ -354,17 +363,17 @@ export function PhotoCard({
             {photo.capture === "live" && <><br />Code {photo.dayCode}{photo.timestampBy ? ` · ${photo.timestampBy}` : ""}</>}
             {photo.sha256 && <><br />#{photo.sha256.slice(0, 12)}</>}
           </span>
-          <button
-            className={`iconbtn ${armed ? "armed" : ""}`}
-            type="button"
-            onClick={remove}
-            aria-label={armed ? `Confirm deleting photo P${photo.n}` : `Delete photo P${photo.n}`}
-            title={armed ? "Click again to delete" : "Delete"}
+          <HoldButton
+            className="kk h-9 min-w-0 px-3 text-xs"
+            onHoldComplete={remove}
+            resetAfter={0}
+            completeLabel="Deleting…"
+            aria-label={`Delete photo P${photo.n}: press and hold`}
           >
-            {armed ? "Sure?" : <Icon name="trash" small />}
-          </button>
+            Hold to delete
+          </HoldButton>
         </div>
       </div>
-    </figure>
+    </motion.figure>
   );
 }

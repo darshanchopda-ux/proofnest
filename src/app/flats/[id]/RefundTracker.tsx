@@ -4,6 +4,8 @@ import { useState, type Dispatch, type FormEvent, type SetStateAction } from "re
 import { Icon } from "@/components/Icon";
 import { useToast } from "@/components/Toast";
 import { addRefundEntry, deleteRefundEntry } from "@/app/flats/actions";
+import { Rupees } from "@/components/motion";
+import SpendingRing from "@/components/kokonutui/spending-ring";
 import { refundAsk } from "@/lib/guidance";
 import { fmtDate, money, plural, refundInfo } from "@/lib/format";
 import type { FlatDTO, RefundDTO } from "@/lib/types";
@@ -55,11 +57,24 @@ export function RefundTracker({ flat, setFlat }: { flat: FlatDTO; setFlat: Dispa
     <section className="refunds" aria-labelledby="rf-title">
       <h3 id="rf-title">Money back</h3>
       {deposit > 0 ? (
-        <dl className="rf-sum">
-          <div><dt>Deposit</dt><dd>{money(deposit)}</dd></div>
-          <div><dt>Received</dt><dd>{money(received)}</dd></div>
-          <div className={owed ? "owed" : "paid"}><dt>{expected < deposit ? "Still owed to you" : "Still with the owner"}</dt><dd>{money(owed)}</dd></div>
-        </dl>
+        <div className="rf-top">
+          <dl className="rf-sum">
+            <div><dt>Deposit</dt><dd><Rupees value={deposit} /></dd></div>
+            <div><dt>Received</dt><dd><Rupees value={received} /></dd></div>
+            <div className={owed ? "owed" : "paid"}><dt>{expected < deposit ? "Still owed to you" : "Still with the owner"}</dt><dd><Rupees value={owed} /></dd></div>
+          </dl>
+          {/* The deposit split three ways; turn the ring (or use the arrow keys) to read each part. */}
+          <SpendingRing
+            title="Your deposit"
+            currency="INR"
+            className="kk rf-ring"
+            categories={[
+              { name: "Received back", amount: Math.min(received, deposit), stroke: "stroke-ok", dot: "bg-ok" },
+              { name: "Deductions you accept", amount: deposit - expected, stroke: "stroke-turmeric", dot: "bg-turmeric" },
+              { name: "Still owed", amount: owed, stroke: "stroke-brick", dot: "bg-brick" },
+            ].filter((c) => c.amount > 0)}
+          />
+        </div>
       ) : (
         <p className="hint">Add your security deposit in Edit details to see what&apos;s still owed.</p>
       )}

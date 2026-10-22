@@ -1,5 +1,6 @@
 "use client";
 
+import { motion } from "motion/react";
 import { useEffect, useRef, useState, useTransition, type Dispatch, type SetStateAction } from "react";
 import { Icon } from "@/components/Icon";
 import { useToast } from "@/components/Toast";
@@ -8,6 +9,7 @@ import { useDialogFocus } from "@/components/useDialogFocus";
 import { depositMonths } from "@/lib/format";
 import type { FlatDTO, FlatPatch } from "@/lib/types";
 import { Flatmates } from "./Flatmates";
+import HoldButton from "@/components/kokonutui/hold-button";
 
 type Field =
   | "address"
@@ -35,7 +37,6 @@ export function DetailsDrawer({
   onClose: () => void;
 }) {
   const toast = useToast();
-  const [armed, setArmed] = useState(false);
   const [deleting, startDelete] = useTransition();
   const closeRef = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLElement>(null);
@@ -70,11 +71,6 @@ export function DetailsDrawer({
   }
 
   function remove() {
-    if (!armed) {
-      setArmed(true);
-      setTimeout(() => setArmed(false), 3500);
-      return;
-    }
     startDelete(async () => {
       const result = await deleteFlat(flat.id);
       if (result && !result.ok) toast(result.error, "bad");
@@ -85,8 +81,8 @@ export function DetailsDrawer({
 
   return (
     <>
-      <div className="overlay" onClick={onClose} />
-      <aside className="drawer" ref={panel} role="dialog" aria-modal="true" aria-labelledby="dr-title">
+      <motion.div className="overlay" onClick={onClose} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} />
+      <motion.aside initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%", transition: { duration: 0.2 } }} className="drawer" ref={panel} role="dialog" aria-modal="true" aria-labelledby="dr-title">
         <div className="dr-head">
           <h2 id="dr-title" style={{ fontSize: "1.3rem" }}>Flat details</h2>
           <button ref={closeRef} className="iconbtn" type="button" onClick={onClose} aria-label="Close"><Icon name="close" small /></button>
@@ -131,20 +127,13 @@ export function DetailsDrawer({
           {flat.access === "owner" && (
             <div className="sec">
               <p className="hint" style={{ margin: 0 }}>Deleting removes this flat and its photos for good, for your flatmates too.</p>
-              <button
-                className={`btn small ghost danger ${armed ? "armed" : ""}`}
-                type="button"
-                onClick={remove}
-                disabled={deleting}
-                style={{ justifySelf: "start" }}
-              >
-                <Icon name="trash" small />
-                {deleting ? "Deleting…" : armed ? "Click again to delete for good" : "Delete this flat"}
-              </button>
+              <HoldButton className="kk justify-self-start" holdDuration={1600} onHoldComplete={remove} disabled={deleting} resetAfter={0} completeLabel="Deleting…">
+                Hold to delete this flat
+              </HoldButton>
             </div>
           )}
         </div>
-      </aside>
+      </motion.aside>
     </>
   );
 }

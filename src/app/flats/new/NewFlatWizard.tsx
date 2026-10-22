@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState, useTransition, type FormEvent } from "react";
 import { Icon } from "@/components/Icon";
 import { createFlat } from "@/app/flats/actions";
-import { todayISO } from "@/lib/format";
+import { fmtDate, money, todayISO } from "@/lib/format";
 import type { NewFlatInput } from "@/lib/types";
 
 type Key = keyof Omit<NewFlatInput, "stage">;
@@ -76,17 +77,32 @@ export function NewFlatWizard() {
   }
 
   return (
-    <div className="modal" role="region" aria-labelledby="wz-title">
+    <div className="wz">
+    <div className="modal wz-form" role="region" aria-labelledby="wz-title">
       <div className="wz-top">
         <span className="eyebrow">{moveOut ? "Moving out" : "Moving in"} · Step {step} of 2</span>
         <Link className="iconbtn" href="/" aria-label="Cancel and go back"><Icon name="close" small /></Link>
       </div>
       <div className="wz-prog" aria-hidden="true">
-        <i className="on" />
-        <i className={step === 2 ? "on" : ""} />
+        <motion.i initial={false} animate={{ width: step === 1 ? "50%" : "100%" }} />
       </div>
       <h2 id="wz-title">{step === 1 ? "Which flat is this?" : moveOut ? "About your move-out" : "About your move-in"}</h2>
-      <form key={step} className={`wz-body ${dir}`} onSubmit={submit} autoComplete="off">
+      <AnimatePresence mode="wait" initial={false} custom={dir === "back" ? -1 : 1}>
+      <motion.form
+        key={step}
+        className="wz-body"
+        onSubmit={submit}
+        autoComplete="off"
+        custom={dir === "back" ? -1 : 1}
+        variants={{
+          enter: (d: number) => ({ opacity: 0, x: 24 * d }),
+          shown: { opacity: 1, x: 0 },
+          leave: (d: number) => ({ opacity: 0, x: -16 * d, transition: { duration: 0.12 } }),
+        }}
+        initial="enter"
+        animate="shown"
+        exit="leave"
+      >
         {step === 1 ? (
           <>
             {field("address", "Flat address", "text", "Flat 302, Sunrise Apartments, HSR Layout, Bengaluru", undefined, true)}
@@ -127,7 +143,55 @@ export function NewFlatWizard() {
             {step === 1 ? <>Continue <Icon name="arrow" small /></> : pending ? "Creating…" : <>Create my flat <Icon name="check" small /></>}
           </button>
         </div>
-      </form>
+      </motion.form>
+      </AnimatePresence>
     </div>
+    <RecordCover data={data} moveOut={moveOut} />
+    </div>
+  );
+}
+
+/** The record being started, filling in as you type: so you can see what you're making before you make it. */
+function RecordCover({ data, moveOut }: { data: NewFlatInput; moveOut: boolean }) {
+  const facts: [string, string][] = [
+    ["Owner", data.ownerName.trim()],
+    [moveOut ? "Moved in" : "Moving in", data.moveIn ? fmtDate(data.moveIn) : ""],
+    ...(moveOut ? ([["Keys back", data.keysHandedOver ? fmtDate(data.keysHandedOver) : ""]] as [string, string][]) : []),
+    ...(moveOut ? [] : ([["Monthly rent", Number(data.monthlyRent) > 0 ? money(data.monthlyRent) : ""]] as [string, string][])),
+    ["Deposit", Number(data.deposit) > 0 ? money(data.deposit) : ""],
+  ];
+  return (
+    <aside className="wz-cover" aria-label="Preview of your record">
+      <span className="tape" aria-hidden="true" />
+      <p className="wz-cover-brand">ProofNest · {moveOut ? "Move-out record" : "Move-in record"}</p>
+      <AnimatePresence mode="popLayout" initial={false}>
+        <motion.h3 key={data.address.trim() ? "set" : "empty"} className={data.address.trim() ? "" : "empty"} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+          {data.address.trim() || "Your flat's address"}
+        </motion.h3>
+      </AnimatePresence>
+      <dl>
+        {facts.map(([k, v]) => (
+          <div key={k}>
+            <dt>{k}</dt>
+            <dd>
+              <AnimatePresence mode="popLayout" initial={false}>
+                <motion.span key={v || "blank"} initial={{ opacity: 0, y: 3 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -3 }}>
+                  {v || "—"}
+                </motion.span>
+              </AnimatePresence>
+            </dd>
+          </div>
+        ))}
+      </dl>
+      <p className="wz-cover-next">{moveOut ? "Next: photograph each room as you hand it back." : "Next: photograph each room before you unpack."}</p>
+      <div className="wz-prints" aria-hidden="true">
+        {["Hall", "Kitchen", "Bedroom", "Bathroom"].map((room, i) => (
+          <span key={room} style={{ ["--t" as string]: `${[-2, 1.5, -1, 2][i]}deg` }}>
+            <i />
+            {room}
+          </span>
+        ))}
+      </div>
+    </aside>
   );
 }

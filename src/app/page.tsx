@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { Suspense } from "react";
+import { HeroBoard3D } from "@/components/HeroBoard3D";
 import { Icon } from "@/components/Icon";
+import { Reveal, RevealItem } from "@/components/motion";
 import { createExampleFlat } from "@/app/flats/actions";
 import { ExampleButton } from "./ExampleButton";
 import { getCurrentUser } from "@/lib/dal";
@@ -12,25 +14,27 @@ export default function Home() {
     <>
       <section className="wrap hero" aria-labelledby="hero-title">
         <div className="h-copy">
-          <h1 id="hero-title">Your deposit, backed by proof.</h1>
-          <p className="lede">
+          <h1 id="hero-title" className="rise" style={{ "--d": 0 } as React.CSSProperties}>Your deposit, backed by proof.</h1>
+          <p className="lede rise" style={{ "--d": 1 } as React.CSSProperties}>
             Photograph your flat on move-in day. Every photo is sealed with the time and a public timestamp, so your owner can&apos;t call it
             old, edited or fake when you move out.
           </p>
-          <div className="h-cta">
+          <div className="h-cta rise" style={{ "--d": 2 } as React.CSSProperties}>
             <Link className="btn accent big" href="/flats/new?stage=movein">
               Start move-in record<Icon name="arrow" small />
             </Link>
             <Link className="linkbtn" href="/flats/new?stage=moveout">Moving out? Check the owner&apos;s deductions</Link>
           </div>
-          <div className="h-note">
+          <div className="h-note rise" style={{ "--d": 3 } as React.CSSProperties}>
             <p>Free. No password: you sign in with a code on WhatsApp.</p>
             <form action={createExampleFlat} className="example-link">
               <ExampleButton />
             </form>
           </div>
         </div>
-        <SampleRecord />
+        <HeroBoard3D>
+          <SampleRecord />
+        </HeroBoard3D>
       </section>
 
       <Suspense fallback={null}>
@@ -39,29 +43,29 @@ export default function Home() {
 
       <section className="wrap proof" aria-labelledby="proof-title">
         <h2 id="proof-title">How the proof works</h2>
-        <dl className="proof-list">
-          <div>
+        <Reveal as="dl" className="proof-list" stagger={0.1}>
+          <RevealItem>
             <dt>Taken live, in the flat</dt>
             <dd>
               Photos come from ProofNest&apos;s own camera, never your gallery. The room, the time and that day&apos;s code are printed on each one,
               and a code can&apos;t be known in advance.
             </dd>
-          </div>
-          <div>
+          </RevealItem>
+          <RevealItem>
             <dt>Sealed by a public clock</dt>
             <dd>
               Each photo&apos;s fingerprint is timestamped by an independent authority. Anyone can check the photo existed at that moment,
               without having to trust ProofNest.
             </dd>
-          </div>
-          <div>
+          </RevealItem>
+          <RevealItem>
             <dt>Confirmed by your owner</dt>
             <dd>
               Send one WhatsApp link. Your owner looks through the photos and confirms in a tap, with no account. Their answer is dated and
               goes on your record.
             </dd>
-          </div>
-        </dl>
+          </RevealItem>
+        </Reveal>
         <div className="proof-after">
           <p>
             <b>At move-out,</b> paste the owner&apos;s deductions. ProofNest checks each charge against your photos and rent agreement, you
@@ -72,11 +76,11 @@ export default function Home() {
 
       <section className="wrap whosees" aria-labelledby="who-title">
         <h2 id="who-title">Who can see your photos</h2>
-        <ul>
-          <li><b>You.</b> Your flats are private to your account.</li>
-          <li><b>Your owner,</b> only if you send them the link. It stops working after 30 days.</li>
-          <li><b>Flatmates,</b> only if you invite them.</li>
-        </ul>
+        <Reveal as="ul">
+          <RevealItem as="li"><b>You.</b> Your flats are private to your account.</RevealItem>
+          <RevealItem as="li"><b>Your owner,</b> only if you send them the link. It stops working after 30 days.</RevealItem>
+          <RevealItem as="li"><b>Flatmates,</b> only if you invite them.</RevealItem>
+        </Reveal>
         <p className="muted">
           You can download everything as an evidence pack, or delete it all, at any time. <Link href="/privacy">Read the privacy notice</Link>.
         </p>

@@ -1,5 +1,6 @@
 "use client";
 
+import { AnimatePresence, motion } from "motion/react";
 import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from "react";
 import { Icon } from "./Icon";
 
@@ -22,12 +23,20 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     <ToastContext value={show}>
       {children}
       <div role="status" aria-live="polite">
-        {toast && (
-          <div key={toast.id} className={`toast ${toast.kind === "bad" ? "bad" : ""}`}>
-            <Icon name={toast.kind === "bad" ? "alert" : "check"} />
-            <span>{toast.message}</span>
-          </div>
-        )}
+        <AnimatePresence>
+          {toast && (
+            <motion.div
+              key={toast.id}
+              className={`toast ${toast.kind === "bad" ? "bad" : ""}`}
+              initial={{ x: "-50%", y: 18, opacity: 0, scale: 0.97 }}
+              animate={{ x: "-50%", y: 0, opacity: 1, scale: 1 }}
+              exit={{ x: "-50%", y: 10, opacity: 0, transition: { duration: 0.18 } }}
+            >
+              <Icon name={toast.kind === "bad" ? "alert" : "check"} />
+              <span>{toast.message}</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </ToastContext>
   );

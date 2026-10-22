@@ -5,12 +5,13 @@ import { Suspense } from "react";
 import { BrandMark } from "@/components/Icon";
 import { ToastProvider } from "@/components/Toast";
 import { UserMenu } from "@/components/UserMenu";
+import { MotionProvider } from "@/components/motion";
 import { SITE_URL } from "@/lib/site";
 import "./globals.css";
 
 // Nunito, rounded and friendly, for reading; Plex Mono only for facts on the record.
-const sans = Nunito({ subsets: ["latin"], variable: "--font-sans", display: "swap" });
-const mono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500", "600", "700"], variable: "--font-mono", display: "swap" });
+const sans = Nunito({ subsets: ["latin"], variable: "--font-nunito", display: "swap" });
+const mono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500", "600", "700"], variable: "--font-plex", display: "swap" });
 
 export const viewport: Viewport = {
   themeColor: "#F7F3EA",
@@ -32,6 +33,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en-IN" className={`${sans.variable} ${mono.variable}`}>
       <body>
+        <MotionProvider>
         <ToastProvider>
           <header className="appbar">
             <div className="wrap">
@@ -51,6 +53,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
             <Link href="/status">Status</Link>
           </footer>
         </ToastProvider>
+        </MotionProvider>
       </body>
     </html>
   );

@@ -1,4 +1,60 @@
 /*
+ * Tailwind v4 without its preflight reset: ProofNest's own stylesheet below is the base, wrapped in the "legacy"
+ * layer so Tailwind utilities (and shadcn / Kokonut components) win when they're applied to the same element.
+ */
+@layer theme, base, legacy, components, utilities, overrides;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+
+/* The palette, named the way shadcn and Kokonut UI components expect it. */
+@theme inline {
+  --color-background: var(--paper);
+  --color-foreground: var(--ink);
+  --color-card: var(--sheet);
+  --color-card-foreground: var(--ink);
+  --color-popover: var(--sheet);
+  --color-popover-foreground: var(--ink);
+  --color-primary: var(--accent);
+  --color-primary-foreground: var(--on-accent);
+  --color-secondary: var(--accent-soft);
+  --color-secondary-foreground: var(--accent-ink);
+  --color-muted: #EFE9DC;
+  --color-muted-foreground: var(--muted);
+  --color-accent: var(--accent-soft);
+  --color-accent-foreground: var(--accent-ink);
+  --color-destructive: var(--bad);
+  --color-border: var(--rule);
+  --color-input: var(--rule-strong);
+  --color-ring: var(--accent);
+  --color-turmeric: var(--turmeric);
+  --color-brick: var(--brick);
+  --color-ok: var(--ok);
+  --font-sans: var(--font-nunito), ui-rounded, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: var(--font-plex), ui-monospace, "SF Mono", Menlo, monospace;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+}
+
+/*
+ * A small reset for the Kokonut UI components only (they expect Tailwind's preflight, which ProofNest leaves off).
+ * It sits in "base", so the components' own utility classes still win.
+ */
+@layer base {
+  .kk ul, .kk ol { list-style: none; margin: 0; padding: 0; }
+  .kk p { margin: 0; }
+  .kk button { background: transparent; border: 0 solid; font: inherit; color: inherit; padding: 0; cursor: pointer; }
+  .kk *, .kk *::before, .kk *::after { border-width: 0; border-style: solid; border-color: var(--rule); }
+}
+
+/* ProofNest's tweaks to Kokonut components, after their utilities. */
+@layer overrides {
+  .rf-ring ul { grid-template-columns: minmax(0, 1fr); }
+}
+
+@layer legacy {
+/*
  * ProofNest: neat polaroids on warm paper.
  * Minimal and premium: mostly paper and white space. Indigo is the one strong colour (actions, "sealed").
  * Turmeric and brick stay small: tape on prints, "worn" and "damaged" tags. Light theme only.
@@ -34,9 +90,9 @@
   --shade: rgba(30, 27, 46, 0.45);
   --lift: 0 1px 2px rgba(30, 27, 46, .05), 0 14px 34px -18px rgba(30, 27, 46, .28);
   --print: 0 1px 1px rgba(30, 27, 46, .06), 0 8px 22px -10px rgba(30, 27, 46, .26);
-  --body: var(--font-sans), ui-rounded, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", sans-serif;
+  --body: var(--font-nunito), ui-rounded, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", sans-serif;
   --display: var(--body);
-  --mono: var(--font-mono), ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --mono: var(--font-plex), ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   --radius: 6px;
   --radius-lg: 8px;
   --ease: cubic-bezier(.2, .8, .2, 1);
@@ -52,6 +108,9 @@
 @keyframes leave { to { opacity: 0; } }
 @keyframes blink { 50% { opacity: .25; } }
 .enter { animation: fadeIn .18s ease both; }
+/* The hero's entrance: plain CSS, so it plays as soon as the page paints, before any JavaScript. */
+@keyframes rise { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+.rise { animation: rise .7s var(--ease) both; animation-delay: calc(var(--d, 0) * 90ms + 60ms); }
 .leaving { animation: leave .18s ease-in forwards; pointer-events: none; }
 
 /* ---------- base ---------- */
@@ -161,7 +220,11 @@ footer.foot::before { margin-bottom: 20px; }
 .example-link { display: inline; }
 
 /* the landing board: three neat prints, taped, barely tilted */
-.board { position: relative; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 26px 22px; padding: 18px 6px 0; max-width: 520px; justify-self: end; width: 100%; }
+.board3d { position: relative; justify-self: end; width: 100%; max-width: 520px; }
+.board { position: relative; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 26px 22px; padding: 18px 6px 0; width: 100%; }
+/* Once the 3D prints are drawn, the flat ones stay in the page for screen readers and layout, just unseen. */
+.board3d-canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; animation: fadeIn .3s ease both; }
+.board3d.is-3d .bprint { visibility: hidden; }
 .bprint { position: relative; margin: 0; padding: 10px 10px 0; background: var(--sheet); border-radius: 3px; box-shadow: var(--print); transform: rotate(var(--tilt, 0deg)); }
 .bp-1 { --tilt: -1.4deg; grid-column: 1 / -1; width: 78%; justify-self: center; }
 .bp-2 { --tilt: 1.2deg; }
@@ -217,9 +280,8 @@ footer.foot::before { margin-bottom: 20px; }
 .modal-wrap { position: fixed; inset: 0; z-index: 51; display: grid; place-items: center; padding: 16px; overflow-y: auto; }
 .modal { width: min(520px, 100%); background: var(--sheet); border-radius: var(--radius-lg); border: 1px solid var(--rule); padding: 30px; display: grid; gap: 16px; }
 .wz-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
-.wz-prog { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-.wz-prog i { height: 3px; border-radius: 2px; background: var(--rule); }
-.wz-prog i.on { background: var(--accent); }
+.wz-prog { height: 3px; border-radius: 2px; background: var(--rule); overflow: hidden; }
+.wz-prog i { display: block; height: 100%; width: 50%; border-radius: 2px; background: var(--accent); }
 .wz-body { display: grid; gap: 14px; }
 .pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
 .pair > div { min-width: 0; }
@@ -321,7 +383,6 @@ footer.foot::before { margin-bottom: 20px; }
 .addtile span { font-size: .8125rem; max-width: 26ch; }
 /* each photo is a neat print: white border, a strip of turmeric tape, the caption in the bottom margin */
 .pcard { margin: 0; display: grid; align-content: start; gap: 12px; scroll-margin-top: 120px; }
-.pcard.pop { animation: fadeIn .3s ease both; }
 .print { position: relative; padding: 10px 10px 0; background: var(--sheet); border-radius: 3px; box-shadow: var(--print); transform: rotate(var(--tilt, 0deg)); transition: transform .2s var(--ease); }
 .pgrid > .pcard:nth-child(3n + 1) .print { --tilt: -.6deg; }
 .pgrid > .pcard:nth-child(3n + 2) .print { --tilt: .5deg; }
@@ -415,19 +476,19 @@ footer.foot::before { margin-bottom: 20px; }
 .paper.streaming textarea { border-color: var(--accent); }
 
 /* ---------- overlays ---------- */
-.overlay { position: fixed; inset: 0; z-index: 50; background: var(--shade); animation: fadeIn .2s ease; }
-.drawer { position: fixed; top: 0; right: 0; bottom: 0; z-index: 51; width: min(440px, 100%); background: var(--sheet); box-shadow: var(--lift); display: flex; flex-direction: column; animation: slideIn .26s var(--ease); }
+.overlay { position: fixed; inset: 0; z-index: 50; background: var(--shade); }
+.drawer { position: fixed; top: 0; right: 0; bottom: 0; z-index: 51; width: min(440px, 100%); background: var(--sheet); box-shadow: var(--lift); display: flex; flex-direction: column; }
 .dr-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 16px 20px; border-bottom: 1px solid var(--rule); }
 .dr-head h2 { font-size: 1.15rem !important; }
 .dr-body { padding: 18px 20px 28px; overflow-y: auto; display: grid; gap: 14px; align-content: start; }
 .dr-body .sec { padding-top: 14px; border-top: 1px solid var(--rule); display: grid; gap: 8px; }
 .dr-body .sec h3 { font-size: .95rem; }
 .lightbox { position: fixed; inset: 0; z-index: 52; display: grid; place-items: center; padding: 20px 16px; }
-.lb-in { position: relative; background: var(--sheet); border-radius: var(--radius); max-width: min(960px, 100%); max-height: 100%; overflow: auto; display: grid; animation: fadeIn .2s ease; }
+.lb-in { position: relative; background: var(--sheet); border-radius: var(--radius); max-width: min(960px, 100%); max-height: 100%; overflow: auto; display: grid; }
 .lb-in img { display: block; max-width: 100%; max-height: 72vh; object-fit: contain; margin: 0 auto; background: var(--paper); }
 .lb-cap { padding: 12px 16px; display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; flex-wrap: wrap; font-size: .9rem; }
 .lb-cap .ptag { position: static; }
-.toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 60; display: flex; align-items: center; gap: 10px; background: var(--ink); color: var(--sheet); padding: 12px 16px; border-radius: var(--radius); box-shadow: var(--lift); font-size: .9rem; max-width: calc(100% - 32px); animation: toastIn .2s ease; }
+.toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); z-index: 60; display: flex; align-items: center; gap: 10px; background: var(--ink); color: var(--sheet); padding: 12px 16px; border-radius: var(--radius); box-shadow: var(--lift); font-size: .9rem; max-width: calc(100% - 32px); }
 .toast .ic { color: var(--ok-soft); }
 .toast.bad .ic { color: var(--bad-soft); }
 
@@ -551,7 +612,7 @@ body:has(.owner-page) .usermenu { display: none; }
   .summary div:nth-child(even) { padding-left: 12px; border-left: 1px solid var(--rule); }
   .summary div:nth-child(n + 3) { border-top: 1px solid var(--rule); }
   .hero { grid-template-columns: minmax(0, 1fr); gap: var(--s6); padding-block: 40px 48px; }
-  .board { justify-self: center; }
+  .board3d { justify-self: center; }
   .proof-list div { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 640px) {
@@ -768,3 +829,38 @@ body:has(.owner-page) .usermenu { display: none; }
 .lost-print { position: relative; margin: 0 0 var(--s4); width: 220px; padding: 9px 9px 0; background: var(--sheet); border-radius: 3px; box-shadow: var(--print); transform: rotate(-2deg); }
 .lost-img { display: grid; place-items: center; aspect-ratio: 4 / 3; background: var(--paper); border: 1.5px dashed var(--rule-strong); font: 700 2.25rem var(--mono); color: var(--rule-strong); }
 .lost-print figcaption { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 9px 2px 12px; font-size: .875rem; font-weight: 700; }
+
+} /* end @layer legacy */
+
+/* refund tracker: the summary beside the deposit ring */
+.rf-top { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 300px); gap: var(--s5); align-items: start; }
+.rf-top .rf-sum { grid-template-columns: minmax(0, 1fr); padding: 4px 16px; }
+.rf-top .rf-sum div, .rf-top .rf-sum div + div { padding: 10px 0; border-left: 0; }
+.rf-top .rf-sum div + div { border-top: 1px solid var(--rule); }
+@media (max-width: 640px) { .rf-top { grid-template-columns: minmax(0, 1fr); } .rf-ring { justify-self: center; } }
+/* the day code as a little flip board */
+.daycode-board { flex: none; display: inline-flex; padding: 6px; background: var(--accent-soft); border-radius: 8px; }
+
+/* new-flat wizard: the form beside a live preview of the record it starts */
+.wz { width: min(920px, 100%); display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 340px); gap: var(--s6); align-items: start; }
+.wz .wz-form { width: 100%; }
+.wz-cover { position: relative; margin-top: 18px; padding: 22px 22px 20px; background: var(--sheet); border-radius: 3px; box-shadow: var(--print); transform: rotate(1.2deg); display: grid; gap: 12px; }
+.wz-cover .tape { top: -11px; }
+.wz-cover-brand { font: 600 .75rem var(--mono); letter-spacing: .02em; color: var(--muted); padding-bottom: 8px; border-bottom: 1.5px solid var(--ink); }
+.wz-cover h3 { font-size: 1.25rem; font-weight: 850; letter-spacing: -0.015em; overflow-wrap: anywhere; }
+.wz-cover h3.empty { color: var(--rule-strong); }
+.wz-cover dl { margin: 0; display: grid; border-top: 1px solid var(--rule); }
+.wz-cover dl div { display: grid; grid-template-columns: 100px minmax(0, 1fr); gap: 8px; padding: 6px 0; border-bottom: 1px dashed var(--rule); font-size: .875rem; }
+.wz-cover dt { color: var(--muted); }
+.wz-cover dd { margin: 0; font: 600 .8125rem var(--mono); overflow: hidden; }
+.wz-cover dd span { display: inline-block; }
+.wz-cover-next { font-size: .8125rem; color: var(--muted); }
+.wz-prints { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.wz-prints span { display: grid; gap: 4px; padding: 4px 4px 6px; background: var(--paper); border-radius: 2px; transform: rotate(var(--t)); font-size: .6875rem; font-weight: 700; color: var(--muted); text-align: center; }
+.wz-prints i { aspect-ratio: 4 / 3; border: 1.5px dashed var(--rule-strong); border-radius: 1px; }
+@media (max-width: 860px) {
+  .wz { grid-template-columns: minmax(0, 1fr); gap: var(--s5); }
+  .wz-cover { order: -1; transform: rotate(.6deg); padding: 16px; }
+  .wz-cover dl, .wz-cover-next { display: none; }
+  .wz-prints { display: none; }
+}

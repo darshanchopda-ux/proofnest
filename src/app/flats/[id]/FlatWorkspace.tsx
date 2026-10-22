@@ -2,6 +2,7 @@
 
 import { upload } from "@vercel/blob/client";
 import Link from "next/link";
+import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Icon } from "@/components/Icon";
 import { useToast } from "@/components/Toast";
@@ -35,7 +36,8 @@ const STEPS: { id: Step; n: number; when: string; title: string; short: string }
 export function FlatWorkspace({ initialFlat, initialStep }: { initialFlat: FlatDTO; initialStep: Step }) {
   const [flat, setFlat] = useState(initialFlat);
   const [step, setStep] = useState<Step>(initialStep);
-  const [animKey, setAnimKey] = useState(0);
+  // Which way the tab panel slides: forward through the steps, or back.
+  const [dir, setDir] = useState(1);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [zoom, setZoom] = useState<PhotoDTO | null>(null);
   const [pending, setPending] = useState<Record<string, number>>({});
@@ -55,8 +57,8 @@ export function FlatWorkspace({ initialFlat, initialStep }: { initialFlat: FlatD
     (next: Step) => {
       // Clicking the step you're on does nothing, so it never wipes half-typed input or an AI run in progress.
       if (next === step) return;
+      setDir(STEPS.findIndex((s) => s.id === next) >= STEPS.findIndex((s) => s.id === step) ? 1 : -1);
       setStep(next);
-      setAnimKey((k) => k + 1);
       window.history.replaceState(null, "", `?step=${next}`);
     },
     [step],
@@ -367,7 +369,22 @@ export function FlatWorkspace({ initialFlat, initialStep }: { initialFlat: FlatD
         <Stepper flat={flat} step={step} onStep={goStep} />
         <SaveState uploading={Object.values(pending).reduce((n, k) => n + k, 0)} />
       </div>
-      <section className="panel enter" key={animKey} role="region" aria-label={STEPS.find((s) => s.id === step)?.title}>
+      <AnimatePresence mode="wait" initial={false} custom={dir}>
+      <motion.section
+        className="panel"
+        key={step}
+        custom={dir}
+        variants={{
+          enter: (d: number) => ({ opacity: 0, x: 28 * d }),
+          shown: { opacity: 1, x: 0 },
+          leave: (d: number) => ({ opacity: 0, x: -18 * d, transition: { duration: 0.14 } }),
+        }}
+        initial="enter"
+        animate="shown"
+        exit="leave"
+        role="region"
+        aria-label={STEPS.find((s) => s.id === step)?.title}
+      >
         {step === "record" && (
           <RecordStep
             flat={flat}
@@ -409,9 +426,12 @@ export function FlatWorkspace({ initialFlat, initialStep }: { initialFlat: FlatD
           />
         )}
         {step === "letter" && <LetterStep flat={flat} setFlat={setFlat} patchFlat={patchFlat} onStep={goStep} onCopy={copyLetter} />}
-      </section>
+      </motion.section>
+      </AnimatePresence>
       </div>
-      {drawerOpen && <DetailsDrawer flat={flat} setFlat={setFlat} patchFlat={patchFlat} onClose={() => setDrawerOpen(false)} />}
+      <AnimatePresence>
+        {drawerOpen && <DetailsDrawer key="details" flat={flat} setFlat={setFlat} patchFlat={patchFlat} onClose={() => setDrawerOpen(false)} />}
+      </AnimatePresence>
       {camera && (
         <CameraCapture
           room={camera.room}
@@ -421,8 +441,10 @@ export function FlatWorkspace({ initialFlat, initialStep }: { initialFlat: FlatD
           onClose={closeCamera}
         />
       )}
+      <AnimatePresence>
       {agreementOpen && (
         <AgreementDrawer
+          key="agreement"
           flat={flat}
           setFlat={setFlat}
           patchFlat={patchFlat}
@@ -433,7 +455,8 @@ export function FlatWorkspace({ initialFlat, initialStep }: { initialFlat: FlatD
           onClose={() => setAgreementOpen(false)}
         />
       )}
-      {zoom && <Lightbox photo={zoom} onClose={() => setZoom(null)} />}
+      </AnimatePresence>
+      <AnimatePresence>{zoom && <Lightbox key="zoom" photo={zoom} onClose={() => setZoom(null)} />}</AnimatePresence>
     </div>
   );
 }
@@ -529,8 +552,12 @@ function SaveState({ uploading }: { uploading: number }) {
   }[state];
   return (
     <p className={`savestate ${state}`} role="status" aria-live="polite">
-      <i aria-hidden="true" />
-      {text}
+      <motion.i aria-hidden="true" key={state} initial={{ scale: 0.4 }} animate={{ scale: 1 }} />
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.span key={text} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4, transition: { duration: 0.12 } }}>
+          {text}
+        </motion.span>
+      </AnimatePresence>
     </p>
   );
 }
@@ -631,7 +658,7 @@ function NextCard({
     );
   };
   return (
-    <section className="next enter" key={action.key} aria-label="What to do next">
+    <motion.section className="next" key={action.key} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} aria-label="What to do next">
       <div>
         <b>{action.title}</b>
         <p>{action.text}</p>
@@ -640,7 +667,7 @@ function NextCard({
         {button(action.secondary, "ghost")}
         {button(action.primary, "accent")}
       </div>
-    </section>
+    </motion.section>
   );
 }
 
@@ -649,9 +676,18 @@ function Lightbox({ photo, onClose }: { photo: PhotoDTO; onClose: () => void }) 
   useDialogFocus(box);
   return (
     <>
-      <div className="overlay" onClick={onClose} />
+      <motion.div className="overlay" onClick={onClose} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} />
       <div className="lightbox" onClick={(e) => e.target === e.currentTarget && onClose()}>
-        <div className="lb-in" ref={box} role="dialog" aria-modal="true" aria-label={`Photo P${photo.n}`}>
+        <motion.div
+          className="lb-in"
+          ref={box}
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Photo P${photo.n}`}
+          initial={{ opacity: 0, scale: 0.94, rotate: -1.5 }}
+          animate={{ opacity: 1, scale: 1, rotate: 0 }}
+          exit={{ opacity: 0, scale: 0.96, transition: { duration: 0.15 } }}
+        >
           {photo.src ? (
             // eslint-disable-next-line @next/next/no-img-element -- private, auth-checked image route
             <img src={photo.src} alt={`Photo P${photo.n}, ${photo.room}`} />
@@ -670,7 +706,7 @@ function Lightbox({ photo, onClose }: { photo: PhotoDTO; onClose: () => void }) 
             </div>
             <button className="btn small" type="button" onClick={onClose} autoFocus>Close</button>
           </div>
-        </div>
+        </motion.div>
       </div>
     </>
   );
