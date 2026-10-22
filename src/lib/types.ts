@@ -19,6 +19,12 @@ export type PhotoDTO = {
   takenAt: string | null;
   takenFrom: string;
   addedAt: string;
+  /** "live" when taken with ProofNest's camera screen, stamped with the day code; "upload" for any other file. */
+  capture: "live" | "upload";
+  dayCode: string;
+  /** When a public timestamp authority signed this photo's fingerprint, and which one. */
+  timestampedAt: string | null;
+  timestampBy: string;
 };
 
 export type Decision = "already_there" | "wear_and_tear" | "no_receipt" | "check" | "likely_valid";
@@ -71,6 +77,8 @@ export type FlatDTO = {
   letter: string;
   photos: PhotoDTO[];
   agreement: AgreementDTO | null;
+  /** Today's code for this flat, printed on photos taken with the camera screen. */
+  dayCode: string;
   /** The latest owner link, answered or not: drives the tenant's "ask your owner" panel. */
   ownerReview: OwnerReviewDTO | null;
   /** The owner's latest answer, which stays the evidence while a newer link waits. */

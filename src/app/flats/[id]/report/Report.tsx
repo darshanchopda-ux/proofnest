@@ -12,6 +12,11 @@ export function Report({ flat }: { flat: FlatDTO }) {
   const count = (c: PhotoDTO["condition"]) => flat.photos.filter((p) => p.condition === c).length;
   const flagged = flat.photos.filter((p) => p.condition !== "good");
   const tenant = flat.tenantName || "The tenant";
+  const real = flat.photos.filter((p) => !p.isExample);
+  const live = real.filter((p) => p.capture === "live");
+  const stamped = real.filter((p) => p.timestampedAt);
+  const authorities = [...new Set(stamped.map((p) => p.timestampBy))];
+  const answer = flat.ownerAnswer;
   const facts: [string, string][] = (
     [
       ["Tenant", flat.tenantName],
@@ -116,8 +121,16 @@ export function Report({ flat }: { flat: FlatDTO }) {
                           {p.takenAt ? `${p.takenFrom === "camera" ? "Taken" : "File date"} ${ist(p.takenAt)}` : "Capture time unknown"}
                           <br />
                           Added to ProofNest {ist(p.addedAt)}
+                          {p.capture === "live" && <><br />Taken live in ProofNest&apos;s camera, stamped with code {p.dayCode}</>}
+                          {p.timestampedAt && <><br />Independently timestamped by {p.timestampBy} at {ist(p.timestampedAt)}</>}
                         </small>
                         {p.sha256 && <code>SHA-256 {p.sha256}</code>}
+                        {p.src && (
+                          <span className="rp-files no-print">
+                            <a href={p.src} download={`P${p.n}.jpg`}>Original file</a>
+                            {p.timestampedAt && <a href={`/api/photos/${p.id}/timestamp`}>Timestamp (.tsr)</a>}
+                          </span>
+                        )}
                       </figcaption>
                     </figure>
                   ))}
@@ -144,12 +157,87 @@ export function Report({ flat }: { flat: FlatDTO }) {
               </div>
             </section>
 
-            <footer className="rp-foot">
-              <p>
-                <b>Checking a photo.</b> Each fingerprint is the SHA-256 of the original photo file, calculated on the tenant&apos;s phone when it was
-                added. The tenant keeps the original files. To check one, calculate its SHA-256 (on a Mac: <code>shasum -a 256 photo.jpg</code>; on
-                Windows: <code>certutil -hashfile photo.jpg SHA256</code>). It matches only if the photo is exactly the same.
+            <section className="rp-sec rp-proof">
+              <h2>How this record can be checked</h2>
+              <ul>
+                <li>
+                  <b>Fingerprints.</b> Each SHA-256 fingerprint above is of the exact file ProofNest stores. Changing even one pixel changes the
+                  fingerprint. To check a file: on a Mac, <code>shasum -a 256 P1.jpg</code>; on Windows, <code>certutil -hashfile P1.jpg SHA256</code>.
+                </li>
+                <li>
+                  <b>Independent timestamps.</b>{" "}
+                  {stamped.length
+                    ? `${stamped.length} of ${plural(real.length, "photo")} carry an RFC 3161 timestamp from ${authorities.join(" and ")}, a public timestamp authority that doesn't depend on ProofNest. It proves the file with that fingerprint existed at the time shown. To check one: openssl ts -verify -in P1.tsr -data P1.jpg -CAfile cacert.pem -untrusted tsa.crt, using the authority's published certificates.`
+                    : "No photo has an independent timestamp yet."}
+                </li>
+                <li>
+                  <b>Live capture.</b>{" "}
+                  {live.length
+                    ? `${plural(live.length, "photo")} ${live.length === 1 ? "was" : "were"} taken with ProofNest's camera screen, which prints the room, the time in IST and that day's code onto the photo. Day codes are made by ProofNest for each flat and day and can't be known in advance, so an image made earlier can't show one.`
+                    : "No photo was taken with ProofNest's camera screen; all were uploaded from the device."}{" "}
+                  {real.length - live.length > 0 && `${plural(real.length - live.length, "photo")} ${real.length - live.length === 1 ? "was" : "were"} uploaded from the device.`}
+                </li>
+                <li>
+                  <b>Upload times</b> come from ProofNest&apos;s server, not the phone, so changing the phone&apos;s clock doesn&apos;t change them.
+                </li>
+                <li>
+                  <b>Owner&apos;s answer.</b>{" "}
+                  {answer?.respondedAt
+                    ? answer.status === "confirmed"
+                      ? `${answer.ownerName} confirmed photos ${answer.photoNs.map((n) => `P${n}`).join(", ")} on ${ist(answer.respondedAt)}, through a link the tenant sent them.`
+                      : `${answer.ownerName} disagreed on ${ist(answer.respondedAt)}: "${answer.ownerNote}"`
+                    : "The owner hasn't confirmed this record through ProofNest yet."}
+                </li>
+              </ul>
+            </section>
+
+            <section className="rp-sec rp-cert">
+              <h2>Certificate for electronic records: Part A (draft)</h2>
+              <p className="rp-note">
+                A draft prepared by ProofNest for a certificate under Section 63(4)(c) of the Bharatiya Sakshya Adhiniyam, 2023. Check it against the
+                form in the Schedule to the Act, ideally with a lawyer, before you sign or file it. Part B, where needed, is completed by an expert.
+                Legal information, not legal advice.
               </p>
+              <p>
+                I, ______________________________, son / daughter / spouse of ______________________________, residing at
+                ______________________________________________________________, state as follows:
+              </p>
+              <ol>
+                <li>
+                  The electronic records listed below are photographs of {flat.address}
+                  {flat.moveIn ? `, taken on or after ${fmtDate(flat.moveIn)} when I moved in,` : ","} with the following device:
+                  make and model ______________________________.
+                </li>
+                <li>
+                  They were uploaded to and stored with ProofNest (proofnest-three.vercel.app), a web service I used lawfully, at the times shown, and
+                  the device and service were operating properly throughout. {live.length > 0 && "Photos marked “live” were captured through ProofNest's camera screen in my browser."}
+                </li>
+                <li>The SHA-256 hash value of each record, and its independent timestamp where there is one, is given below.</li>
+              </ol>
+              <table className="rp-table">
+                <thead>
+                  <tr><th>Photo</th><th>Room</th><th>SHA-256</th><th>Uploaded</th><th>Timestamped</th></tr>
+                </thead>
+                <tbody>
+                  {real.map((p) => (
+                    <tr key={p.id}>
+                      <td>P{p.n}{p.capture === "live" ? " (live)" : ""}</td>
+                      <td>{p.room}</td>
+                      <td><code>{p.sha256 || "pending"}</code></td>
+                      <td>{ist(p.addedAt)}</td>
+                      <td>{p.timestampedAt ? `${ist(p.timestampedAt)}, ${p.timestampBy}` : "None"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div className="rp-lines">
+                <div><span>Place</span></div>
+                <div><span>Signature</span></div>
+                <div><span>Date</span></div>
+              </div>
+            </section>
+
+            <footer className="rp-foot">
               <p>Made with ProofNest. ProofNest gives legal information, not legal advice.</p>
             </footer>
           </>

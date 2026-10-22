@@ -2,9 +2,11 @@
 
 import { and, asc, eq, isNotNull, sql } from "drizzle-orm";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { db } from "@/db";
 import { agreements, charges, flats, ownerReviews, photos } from "@/db/schema";
 import { removeBlobs, removeFolder } from "@/lib/blobs";
+import { isCurrentDayCode, sealMissing, sealPhoto } from "@/lib/evidence";
 import { isUuid, requireUser } from "@/lib/dal";
 import { EXAMPLE_CONTENT_TYPE, getOwnedFlat, toChargeDTO, toPhotoDTO } from "@/lib/flats";
 import { isStale, latestReview, newReviewToken, recordHash, snapshotPhotos, toOwnerReviewDTO } from "@/lib/owner-review";
@@ -213,6 +215,9 @@ export type RecordPhotoInput = {
   sha256: string;
   takenAt: number | null;
   takenFrom: "camera" | "file";
+  /** Set by the camera screen, with the day code it printed on the photo. */
+  capture?: "live" | "upload";
+  dayCode?: string;
 };
 
 /** Saves a photo that the browser has already uploaded to Blob storage under flats/<flatId>/. */
@@ -240,8 +245,11 @@ export async function recordPhoto(flatId: string, input: RecordPhotoInput): Prom
     .where(and(eq(flats.id, flat.id), eq(flats.userId, user.id)))
     .returning({ next: flats.nextPhotoN });
 
+  // A live photo is a JPEG from the camera screen stamped with this flat's current day code; it was taken just now.
+  const live = input.capture === "live" && input.contentType === "image/jpeg" && isCurrentDayCode(flat.id, String(input.dayCode ?? ""));
+  if (input.capture === "live" && !live) return { ok: false, error: "That photo's day code has expired. Reopen the camera and take it again." };
   // Only plausible capture times: cameras without a clock report the year 0, and a bad value would throw below.
-  const takenMs = typeof input.takenAt === "number" ? input.takenAt : NaN;
+  const takenMs = live ? Date.now() : typeof input.takenAt === "number" ? input.takenAt : NaN;
   const takenAt = Number.isFinite(takenMs) && takenMs >= Date.UTC(2000, 0, 1) && takenMs <= Date.now() + 86_400_000 ? new Date(takenMs) : null;
   const [photo] = await db
     .insert(photos)
@@ -254,9 +262,13 @@ export async function recordPhoto(flatId: string, input: RecordPhotoInput): Prom
       sizeBytes: Math.max(0, Math.round(Number(input.sizeBytes) || 0)),
       sha256: /^[0-9a-f]{64}$/.test(input.sha256) ? input.sha256 : "",
       takenAt,
-      takenFrom: takenAt && input.takenFrom === "camera" ? "camera" : "file",
+      takenFrom: live || (takenAt && input.takenFrom === "camera") ? "camera" : "file",
+      capture: live ? "live" : "upload",
+      dayCode: live ? String(input.dayCode) : "",
     })
     .returning();
+  // After responding: fingerprint the stored file and get it timestamped by a public authority.
+  after(() => sealPhoto(photo));
   return { ok: true, data: toPhotoDTO(photo) };
 }
 
@@ -344,6 +356,7 @@ export async function getOwnerReviewLink(flatId: string): Promise<Result<OwnerRe
   if (current && current.status === "pending" && !current.revokedAt) {
     await db.update(ownerReviews).set({ revokedAt: new Date() }).where(eq(ownerReviews.id, current.id));
   }
+  after(() => sealMissing(flat.id));
   const snapshot = snapshotPhotos(rows);
   const [row] = await db
     .insert(ownerReviews)

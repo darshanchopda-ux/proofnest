@@ -70,6 +70,13 @@ export const photos = pgTable(
     takenAt: timestamp("taken_at", { withTimezone: true }),
     // "camera" when the time came from EXIF, "file" when it came from the file's date.
     takenFrom: text("taken_from").notNull().default("file"),
+    // "live" when taken with ProofNest's own camera screen (stamped with the day code), "upload" for any other file.
+    capture: text("capture").notNull().default("upload"),
+    dayCode: text("day_code").notNull().default(""),
+    // RFC 3161 timestamp from a public authority over the stored file's SHA-256: the signed reply, base64.
+    tsaToken: text("tsa_token").notNull().default(""),
+    tsaTime: timestamp("tsa_time", { withTimezone: true }),
+    tsaAuthority: text("tsa_authority").notNull().default(""),
     addedAt: timestamp("added_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex("photos_flat_n_uq").on(t.flatId, t.n), index("photos_flat_idx").on(t.flatId)],

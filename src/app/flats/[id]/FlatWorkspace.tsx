@@ -89,7 +89,7 @@ export function FlatWorkspace({ initialFlat, initialStep }: { initialFlat: FlatD
 
   /** Uploads photos one at a time so P-numbers follow the order they were picked. */
   const addPhotos = useCallback(
-    async (room: string, fileList: FileList | File[]) => {
+    async (room: string, fileList: FileList | File[], opts: { live?: string } = {}) => {
       const files = Array.from(fileList).filter((f) => f.type.startsWith("image/") || /\.(heic|heif)$/i.test(f.name));
       if (!files.length) {
         toast("Pick photo files (JPEG, PNG or WebP).", "bad");
@@ -117,8 +117,9 @@ export function FlatWorkspace({ initialFlat, initialStep }: { initialFlat: FlatD
             sizeBytes: blob.size,
             room,
             sha256: hash,
-            takenAt: takenExif ?? (file.lastModified || null),
-            takenFrom: takenExif ? "camera" : "file",
+            takenAt: opts.live ? Date.now() : (takenExif ?? (file.lastModified || null)),
+            takenFrom: opts.live || takenExif ? "camera" : "file",
+            ...(opts.live && { capture: "live" as const, dayCode: opts.live }),
           });
           if (!result.ok) throw new Error(result.error);
           added++;

@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { agreements, charges, flats, photos, type Agreement, type Charge, type Flat, type Photo } from "@/db/schema";
 import type { AgreementDTO, ChargeDTO, FlatDTO, PhotoDTO } from "@/lib/types";
 import { isUuid } from "@/lib/dal";
+import { dayCode } from "@/lib/evidence";
 import { latestAnswered, latestReview, toOwnerReviewDTO } from "@/lib/owner-review";
 
 export const EXAMPLE_CONTENT_TYPE = "example";
@@ -37,6 +38,10 @@ export function toPhotoDTO(p: Photo): PhotoDTO {
     takenAt: p.takenAt ? p.takenAt.toISOString() : null,
     takenFrom: p.takenFrom,
     addedAt: p.addedAt.toISOString(),
+    capture: p.capture === "live" ? "live" : "upload",
+    dayCode: p.dayCode,
+    timestampedAt: p.tsaTime ? p.tsaTime.toISOString() : null,
+    timestampBy: p.tsaAuthority,
   };
 }
 
@@ -100,6 +105,7 @@ export async function getFlatDTO(userId: string, flatId: string): Promise<FlatDT
     letter: flat.letter,
     photos: photoRows.map(toPhotoDTO),
     agreement: agreementRows[0] ? toAgreementDTO(agreementRows[0]) : null,
+    dayCode: dayCode(flat.id),
     ownerReview: review ? toOwnerReviewDTO(review, photoRows) : null,
     ownerAnswer: answered ? toOwnerReviewDTO(answered, photoRows) : null,
     charges: chargeList,

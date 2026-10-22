@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type Dispatch, type FormEvent, type SetStateAction } from "react";
+import { useCallback, useState, type Dispatch, type FormEvent, type SetStateAction } from "react";
 import { Icon } from "@/components/Icon";
 import { useToast } from "@/components/Toast";
 import { addRoom, deletePhoto, removeRoom, updatePhoto } from "@/app/flats/actions";
@@ -9,6 +9,7 @@ import { roomStats, withRecordChanged } from "@/lib/guidance";
 import { scheduleSave, sendOnUnload } from "@/lib/pending-saves";
 import { fmtDate, plural } from "@/lib/format";
 import { CONDITIONS, type Condition, type FlatDTO, type FlatPatch, type PhotoDTO } from "@/lib/types";
+import { CameraCapture } from "./CameraCapture";
 import { OwnerConfirm } from "./OwnerConfirm";
 
 type Props = {
@@ -16,7 +17,7 @@ type Props = {
   setFlat: Dispatch<SetStateAction<FlatDTO>>;
   pending: Record<string, number>;
   freshIds: Set<string>;
-  onFiles: (room: string, files: FileList | File[]) => void;
+  onFiles: (room: string, files: FileList | File[], opts?: { live?: string }) => void;
   onZoom: (photo: PhotoDTO) => void;
   onCopy: () => void;
   patchFlat: (patch: FlatPatch, delay?: number) => void;
@@ -26,6 +27,8 @@ export function RecordStep({ flat, setFlat, pending, freshIds, onFiles, onZoom, 
   const toast = useToast();
   const rooms = roomStats(flat);
   const [newRoom, setNewRoom] = useState("");
+  const [camera, setCamera] = useState<string | null>(null);
+  const closeCamera = useCallback(() => setCamera(null), []);
 
   async function submitRoom(e: FormEvent) {
     e.preventDefault();
@@ -57,6 +60,14 @@ export function RecordStep({ flat, setFlat, pending, freshIds, onFiles, onZoom, 
           )}
         </div>
       </div>
+
+      <p className="daycode">
+        <Icon name="key" small />
+        <span>
+          Today&apos;s code is <code>{flat.dayCode}</code>. Photos you take with <b>Take photos</b> have it printed on them. For photos
+          from your gallery, write it on paper and include it in one wide shot of each room.
+        </span>
+      </p>
 
       <details className="tips">
         <summary>
@@ -98,8 +109,13 @@ export function RecordStep({ flat, setFlat, pending, freshIds, onFiles, onZoom, 
           onFiles={onFiles}
           onZoom={onZoom}
           onRemove={() => dropRoom(r.name)}
+          onCamera={() => setCamera(r.name)}
         />
       ))}
+
+      {camera && (
+        <CameraCapture room={camera} code={flat.dayCode} onShot={(file) => onFiles(camera, [file], { live: flat.dayCode })} onClose={closeCamera} />
+      )}
 
       {flat.photos.length > 0 && <OwnerConfirm flat={flat} setFlat={setFlat} />}
 
@@ -129,6 +145,7 @@ function Room({
   onFiles,
   onZoom,
   onRemove,
+  onCamera,
 }: {
   index: number;
   name: string;
@@ -140,6 +157,7 @@ function Room({
   onFiles: (room: string, files: FileList | File[]) => void;
   onZoom: (photo: PhotoDTO) => void;
   onRemove: () => void;
+  onCamera: () => void;
 }) {
   const [drag, setDrag] = useState(false);
   return (
@@ -166,6 +184,7 @@ function Room({
         {!photos.length && !pending && (
           <button className="btn small ghost" type="button" onClick={onRemove}>Remove room</button>
         )}
+        <button className="btn small accent" type="button" onClick={onCamera}><Icon name="camera" small />Take photos</button>
       </div>
       <div className="pgrid">
         {photos.map((p) => (
@@ -180,8 +199,8 @@ function Room({
         ))}
         <label className="addtile file-btn">
           <Icon name="camera" />
-          <b>{photos.length ? "Add more" : `Add ${name} photos`}</b>
-          <span>{photos.length ? "or drop photos here" : "Tap to take or pick photos, or drop them here"}</span>
+          <b>Upload photos</b>
+          <span>From your gallery, or drop them here</span>
           <input
             type="file"
             accept="image/*"
@@ -259,6 +278,10 @@ function PhotoCard({
   }
 
   const taken = photo.takenAt ? `${photo.takenFrom === "camera" ? "Taken" : "File date"} ${fmtDate(photo.takenAt, true)}` : "Capture time unknown";
+  const proof = [
+    photo.capture === "live" ? `Taken live · code ${photo.dayCode}` : "Uploaded",
+    photo.timestampedAt ? `timestamped by ${photo.timestampBy}` : photo.isExample ? "" : "timestamp pending",
+  ].filter(Boolean).join(" · ");
 
   return (
     <figure className={`pcard ${photo.condition === "damaged" ? "cond-damaged" : ""} ${fresh ? "pop" : ""} ${leaving ? "leaving" : ""}`}>
@@ -291,6 +314,7 @@ function PhotoCard({
         <div className="pfoot">
           <span className="pmeta">
             {taken}
+            {proof && <><br /><span className={photo.capture === "live" ? "live" : ""}>{proof}</span></>}
             {photo.sha256 && <><br />#{photo.sha256.slice(0, 12)}</>}
           </span>
           <button

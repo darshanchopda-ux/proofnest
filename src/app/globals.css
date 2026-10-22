@@ -251,7 +251,7 @@ footer.foot { padding-block: 24px 32px; font-size: .8rem; color: var(--muted); }
 .seg button.c-damaged[aria-pressed="true"] { color: var(--bad); }
 .pbody input[type="text"] { padding: 7px 9px; font-size: .84rem; }
 .pfoot { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; }
-.pmeta { font-size: .72rem; color: var(--muted); line-height: 1.45; word-break: break-all; }
+.pmeta { font-size: .72rem; color: var(--muted); line-height: 1.45; overflow-wrap: anywhere; }
 .skel { display: block; height: 10px; border-radius: 6px; background: var(--rule); }
 .skeltile { border: 1px solid var(--rule); border-radius: 10px; overflow: hidden; display: grid; gap: 8px; padding-bottom: 10px; }
 .skeltile .skel:first-child { aspect-ratio: 4 / 3; height: auto; border-radius: 0; }
@@ -485,3 +485,35 @@ body:has(.owner-page) .usermenu { display: none; }
   .rp-cond, .rp-facts div, .rp-ph { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   a { color: inherit; text-decoration: none; }
 }
+
+/* day code and live camera */
+.daycode { display: flex; gap: 8px; align-items: flex-start; margin: -6px 0 16px; padding: 10px 14px; border-radius: 10px; background: var(--accent-soft); font-size: .9rem; }
+.daycode .ic { margin-top: 3px; color: var(--accent-ink); flex: none; }
+.daycode code, .cam-top code { font-family: var(--mono); font-weight: 700; letter-spacing: .12em; background: var(--sheet); padding: 1px 6px; border-radius: 5px; }
+.pmeta .live { color: var(--ok); font-weight: 600; }
+.camera { position: fixed; inset: 0; z-index: 55; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; background: #000; color: #fff; }
+.cam-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: calc(12px + env(safe-area-inset-top, 0px)) 16px 12px; background: rgba(0, 0, 0, .7); }
+.cam-top b { display: block; font-size: 1.05rem; }
+.cam-top span { font-size: .84rem; opacity: .85; }
+.cam-top code { color: #111; }
+.cam-top .iconbtn { background: rgba(255, 255, 255, .12); color: #fff; border-color: transparent; }
+.cam-view { position: relative; display: grid; place-items: center; overflow: hidden; }
+.cam-view video { width: 100%; height: 100%; object-fit: contain; background: #000; }
+.cam-view.flash::after { content: ""; position: absolute; inset: 0; background: #fff; opacity: .7; }
+.cam-msg { position: absolute; max-width: 34ch; text-align: center; padding: 16px; font-size: .95rem; }
+.cam-bar { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 12px; padding: 14px 16px calc(14px + env(safe-area-inset-bottom, 0px)); background: rgba(0, 0, 0, .7); font-size: .84rem; }
+.cam-bar .btn { justify-self: end; background: #fff; color: #111; border-color: #fff; }
+.shutter { width: 68px; height: 68px; border-radius: 50%; border: 4px solid #fff; background: rgba(255, 255, 255, .25); cursor: pointer; transition: transform .1s; }
+.shutter:active { transform: scale(.92); }
+.shutter:disabled { opacity: .4; cursor: not-allowed; }
+
+/* move-in record: evidence statement and certificate */
+.rp-proof ul, .rp-cert ol { margin: 0; padding-left: 20px; display: grid; gap: 8px; }
+.rp-proof code, .rp-cert code { font-family: var(--mono); font-size: .72rem; }
+.rp-note { font-size: .82rem; color: var(--muted); padding: 10px 12px; background: var(--paper); border-radius: 8px; }
+.rp-table { width: 100%; border-collapse: collapse; font-size: .78rem; }
+.rp-table th, .rp-table td { text-align: left; padding: 6px 8px 6px 0; border-bottom: 1px solid var(--rule); vertical-align: top; }
+.rp-table th { font-weight: 600; color: var(--muted); }
+.rp-table td code { font-size: .64rem; overflow-wrap: anywhere; word-break: break-all; }
+.rp-files { display: flex; gap: 12px; font-size: .78rem; }
+@media print { .rp-cert { break-before: page; } .rp-table { font-size: 8pt; } }

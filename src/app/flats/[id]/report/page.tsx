@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import { requireUser } from "@/lib/dal";
+import { isUuid, requireUser } from "@/lib/dal";
+import { sealMissing } from "@/lib/evidence";
 import { getFlatDTO } from "@/lib/flats";
 import { Report } from "./Report";
 
@@ -20,6 +21,8 @@ export default function ReportPage({ params }: Props) {
 async function ReportLoader({ params }: Props) {
   const { id } = await params;
   const user = await requireUser(`/flats/${id}/report`);
+  // Make sure every photo is fingerprinted and timestamped before the record is printed.
+  if (isUuid(id)) await sealMissing(id);
   const flat = await getFlatDTO(user.id, id);
   if (!flat) notFound();
   return <Report flat={flat} />;
