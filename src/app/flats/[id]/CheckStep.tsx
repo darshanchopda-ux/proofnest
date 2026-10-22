@@ -170,19 +170,21 @@ export function CheckStep({ flat, setFlat, patchFlat, check, screenshot, setScre
               ))}
             </div>
           )}
-          <div className="evlist">
-            <div><Icon name="check" />{plural(flat.photos.length, "move-in photo")} with room and condition{real.length ? ` (up to 8 shown to the AI)` : ""}</div>
-            <div><Icon name="check" />{plural(noted, "photo note")}</div>
-            <div><Icon name="check" />{flat.evidenceNotes.trim() ? "Your other evidence (WhatsApp, emails)" : "No other evidence yet"}</div>
-            {flat.agreement ? (
-              <div><Icon name="check" />Your rent agreement ({plural(flat.agreement.clauses.length, "clause")})</div>
-            ) : (
-              <div>
-                <Icon name="plus" />
-                <button className="linkbtn" type="button" onClick={onOpenAgreement} style={{ fontSize: "inherit", padding: 0 }}>Add your rent agreement</button>
-              </div>
-            )}
-          </div>
+          <dl className="evlist">
+            <div><dt>Move-in photos</dt><dd>{flat.photos.length}{real.length ? ", up to 8 shown to the AI" : ""}</dd></div>
+            <div><dt>Photo notes</dt><dd>{noted}</dd></div>
+            <div><dt>Other evidence</dt><dd>{flat.evidenceNotes.trim() ? "WhatsApp and emails you noted" : "None yet"}</dd></div>
+            <div>
+              <dt>Rent agreement</dt>
+              <dd>
+                {flat.agreement ? (
+                  plural(flat.agreement.clauses.length, "clause")
+                ) : (
+                  <button className="linkbtn" type="button" onClick={onOpenAgreement} style={{ fontSize: "inherit", padding: 0 }}>Add it</button>
+                )}
+              </dd>
+            </div>
+          </dl>
           <button className="linkbtn" type="button" onClick={onGoRecord} style={{ justifySelf: "start", fontSize: ".84rem" }}>
             Improve your record <Icon name="arrow" small />
           </button>

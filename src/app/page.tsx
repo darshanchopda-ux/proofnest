@@ -39,7 +39,7 @@ export default function Home() {
 
       <section className="wrap proof" aria-labelledby="proof-title">
         <h2 id="proof-title">How the proof works</h2>
-        <dl className="proof-cols">
+        <dl className="proof-list">
           <div>
             <dt>Taken live, in the flat</dt>
             <dd>

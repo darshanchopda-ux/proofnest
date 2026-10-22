@@ -5,6 +5,7 @@ import { Suspense } from "react";
 import { BrandMark } from "@/components/Icon";
 import { ToastProvider } from "@/components/Toast";
 import { UserMenu } from "@/components/UserMenu";
+import { SITE_URL } from "@/lib/site";
 import "./globals.css";
 
 // Nunito, rounded and friendly, for reading; Plex Mono only for facts on the record.
@@ -16,9 +17,15 @@ export const viewport: Viewport = {
   colorScheme: "light",
 };
 
+const description = "Record your flat at move-in with live, sealed photos, check the owner's deposit deductions against them, and ask for your refund.";
+
 export const metadata: Metadata = {
-  title: "ProofNest",
-  description: "Record your flat at move-in, check the owner's deposit deductions against your photos, and ask for your refund.",
+  metadataBase: new URL(SITE_URL),
+  title: "ProofNest · Get your security deposit back",
+  description,
+  applicationName: "ProofNest",
+  openGraph: { type: "website", siteName: "ProofNest", locale: "en_IN", title: "ProofNest · Your deposit, backed by proof", description },
+  twitter: { card: "summary_large_image", title: "ProofNest · Your deposit, backed by proof", description },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
@@ -40,7 +47,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           </header>
           <main>{children}</main>
           <footer className="foot wrap">
-            ProofNest gives legal information, not legal advice. Your flats are private to your account. <Link href="/account">Account</Link> · <Link href="/privacy">Privacy</Link> ·{" "}
+            ProofNest gives legal information, not legal advice. Your flats are private to your account. <Link href="/account">Account</Link> · <Link href="/privacy">Privacy</Link> · <Link href="/terms">Terms</Link> ·{" "}
             <Link href="/status">Status</Link>
           </footer>
         </ToastProvider>
