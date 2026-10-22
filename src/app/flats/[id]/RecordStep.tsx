@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useState, type Dispatch, type FormEvent, type SetStateAction } from "react";
+import { useState, type Dispatch, type FormEvent, type SetStateAction } from "react";
 import { Icon } from "@/components/Icon";
 import { useToast } from "@/components/Toast";
 import { addRoom, deletePhoto, removeRoom, updatePhoto } from "@/app/flats/actions";
@@ -9,7 +9,6 @@ import { roomStats, withRecordChanged } from "@/lib/guidance";
 import { scheduleSave, sendOnUnload } from "@/lib/pending-saves";
 import { fmtDate, plural } from "@/lib/format";
 import { CONDITIONS, type Condition, type FlatDTO, type FlatPatch, type PhotoDTO } from "@/lib/types";
-import { CameraCapture } from "./CameraCapture";
 import { OwnerConfirm } from "./OwnerConfirm";
 
 type Props = {
@@ -17,18 +16,17 @@ type Props = {
   setFlat: Dispatch<SetStateAction<FlatDTO>>;
   pending: Record<string, number>;
   freshIds: Set<string>;
-  onFiles: (room: string, files: FileList | File[], opts?: { live?: string }) => void;
+  /** Opens ProofNest's camera for a room: the only way to add move-in photos. */
+  onCamera: (room: string) => void;
   onZoom: (photo: PhotoDTO) => void;
   onCopy: () => void;
   patchFlat: (patch: FlatPatch, delay?: number) => void;
 };
 
-export function RecordStep({ flat, setFlat, pending, freshIds, onFiles, onZoom, onCopy, patchFlat }: Props) {
+export function RecordStep({ flat, setFlat, pending, freshIds, onCamera, onZoom, onCopy, patchFlat }: Props) {
   const toast = useToast();
   const rooms = roomStats(flat);
   const [newRoom, setNewRoom] = useState("");
-  const [camera, setCamera] = useState<string | null>(null);
-  const closeCamera = useCallback(() => setCamera(null), []);
 
   async function submitRoom(e: FormEvent) {
     e.preventDefault();
@@ -64,8 +62,8 @@ export function RecordStep({ flat, setFlat, pending, freshIds, onFiles, onZoom, 
       <p className="daycode">
         <Icon name="key" small />
         <span>
-          Today&apos;s code is <code>{flat.dayCode}</code>. Photos you take with <b>Take photos</b> have it printed on them. For photos
-          from your gallery, write it on paper and include it in one wide shot of each room.
+          Photos are taken live with ProofNest&apos;s camera, never picked from the gallery, so nobody can say they were edited or
+          made with AI. Each one has the time and today&apos;s code, <code>{flat.dayCode}</code>, printed on it.
         </span>
       </p>
 
@@ -106,16 +104,11 @@ export function RecordStep({ flat, setFlat, pending, freshIds, onFiles, onZoom, 
           freshIds={freshIds}
           flatId={flat.id}
           setFlat={setFlat}
-          onFiles={onFiles}
           onZoom={onZoom}
           onRemove={() => dropRoom(r.name)}
-          onCamera={() => setCamera(r.name)}
+          onCamera={() => onCamera(r.name)}
         />
       ))}
-
-      {camera && (
-        <CameraCapture room={camera} code={flat.dayCode} onShot={(file) => onFiles(camera, [file], { live: flat.dayCode })} onClose={closeCamera} />
-      )}
 
       {flat.photos.length > 0 && <OwnerConfirm flat={flat} setFlat={setFlat} />}
 
@@ -142,7 +135,6 @@ function Room({
   freshIds,
   flatId,
   setFlat,
-  onFiles,
   onZoom,
   onRemove,
   onCamera,
@@ -154,29 +146,12 @@ function Room({
   freshIds: Set<string>;
   flatId: string;
   setFlat: Dispatch<SetStateAction<FlatDTO>>;
-  onFiles: (room: string, files: FileList | File[]) => void;
   onZoom: (photo: PhotoDTO) => void;
   onRemove: () => void;
   onCamera: () => void;
 }) {
-  const [drag, setDrag] = useState(false);
   return (
-    <section
-      className={`room ${drag ? "drag" : ""}`}
-      id={`room-${index}`}
-      onDragOver={(e) => {
-        e.preventDefault();
-        setDrag(true);
-      }}
-      onDragLeave={(e) => {
-        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDrag(false);
-      }}
-      onDrop={(e) => {
-        e.preventDefault();
-        setDrag(false);
-        if (e.dataTransfer.files.length) onFiles(name, e.dataTransfer.files);
-      }}
-    >
+    <section className="room" id={`room-${index}`}>
       <div className="room-head">
         <h3>{name}</h3>
         <span className="count">{plural(photos.length, "photo")}</span>
@@ -184,7 +159,6 @@ function Room({
         {!photos.length && !pending && (
           <button className="btn small ghost" type="button" onClick={onRemove}>Remove room</button>
         )}
-        <button className="btn small accent" type="button" onClick={onCamera}><Icon name="camera" small />Take photos</button>
       </div>
       <div className="pgrid">
         {photos.map((p) => (
@@ -197,21 +171,11 @@ function Room({
             <small>Adding photo…</small>
           </div>
         ))}
-        <label className="addtile file-btn">
+        <button className="addtile" type="button" onClick={onCamera}>
           <Icon name="camera" />
-          <b>Upload photos</b>
-          <span>From your gallery, or drop them here</span>
-          <input
-            type="file"
-            accept="image/*"
-            multiple
-            aria-label={`Add photos to ${name}`}
-            onChange={(e) => {
-              if (e.target.files) onFiles(name, e.target.files);
-              e.target.value = "";
-            }}
-          />
-        </label>
+          <b>{photos.length ? "Take more photos" : `Take ${name} photos`}</b>
+          <span>Opens the camera; photos are stamped with the time and today&apos;s code</span>
+        </button>
       </div>
     </section>
   );

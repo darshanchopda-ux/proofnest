@@ -61,7 +61,7 @@ export function nextAction(flat: FlatDTO): NextAction {
         icon: "camera",
         title: `Start with the ${room.toLowerCase()}`,
         text: "Walk through the flat before you unpack. Take wide shots of every wall and the floor, then close-ups of anything cracked, stained or broken.",
-        primary: { kind: "upload", label: `Add ${room} photos`, room },
+        primary: { kind: "upload", label: `Take ${room} photos`, room },
       };
     }
     if (cov.missing.length) {
@@ -71,7 +71,7 @@ export function nextAction(flat: FlatDTO): NextAction {
         icon: "camera",
         title: `${plural(names.length, "room")} to go`,
         text: `No photos yet of ${listWords(names)}. Every room you skip is one the owner can argue about later.`,
-        primary: { kind: "upload", label: `Add ${names[0]} photos`, room: names[0] },
+        primary: { kind: "upload", label: `Take ${names[0]} photos`, room: names[0] },
       };
     }
     const pdf: NextButton = { kind: "link", label: "Move-in record (PDF)", href: `/flats/${flat.id}/report`, icon: "download" };

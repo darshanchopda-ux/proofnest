@@ -32,7 +32,7 @@ export function CameraCapture({ room, code, onShot, onClose }: Props) {
     let cancelled = false;
     const start = async () => {
       if (!navigator.mediaDevices?.getUserMedia) {
-        setError("This browser can't open the camera here. Use Upload photos instead.");
+        setError("This browser can't open the camera. Open ProofNest on your phone to take the photos.");
         return;
       }
       try {
@@ -48,8 +48,8 @@ export function CameraCapture({ room, code, onShot, onClose }: Props) {
         if (cancelled) return;
         setError(
           e instanceof DOMException && e.name === "NotAllowedError"
-            ? "Camera access was refused. Allow the camera for this site in your browser, or use Upload photos instead."
-            : "The camera couldn't start. Use Upload photos instead.",
+            ? "Camera access was refused. Allow the camera for this site in your browser settings, then reopen the camera."
+            : "The camera couldn't start. Close other apps using it, or open ProofNest on your phone.",
         );
       }
     };

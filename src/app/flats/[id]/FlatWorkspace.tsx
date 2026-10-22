@@ -13,6 +13,7 @@ import { flushSaves, scheduleSave, sendOnUnload } from "@/lib/pending-saves";
 import { exifDate, safeFileName, sha256Hex, toJpeg, UPLOADABLE } from "@/lib/photo-client";
 import { CONDITIONS, type AgreementDTO, type ChargeDTO, type FlatDTO, type FlatPatch, type PhotoDTO, type Step } from "@/lib/types";
 import { AgreementDrawer, type AgreementReadState } from "./AgreementDrawer";
+import { CameraCapture } from "./CameraCapture";
 import { CheckStep, type CheckState } from "./CheckStep";
 import { DetailsDrawer } from "./DetailsDrawer";
 import { LetterStep } from "./LetterStep";
@@ -40,6 +41,8 @@ export function FlatWorkspace({ initialFlat, initialStep }: { initialFlat: FlatD
   const [screenshot, setScreenshot] = useState<File | null>(null);
   const checkCtl = useRef<AbortController | null>(null);
   const [agreementOpen, setAgreementOpen] = useState(false);
+  const [camera, setCamera] = useState<string | null>(null);
+  const closeCamera = useCallback(() => setCamera(null), []);
   const [agRead, setAgRead] = useState<AgreementReadState>({ phase: "idle", status: "", error: false, canRetry: false });
   const agCtl = useRef<AbortController | null>(null);
   const lastAgInput = useRef<{ files: File[]; text: string } | null>(null);
@@ -87,7 +90,7 @@ export function FlatWorkspace({ initialFlat, initialStep }: { initialFlat: FlatD
     [flat.id, toast],
   );
 
-  /** Uploads photos one at a time so P-numbers follow the order they were picked. */
+  /** Uploads camera photos one at a time so P-numbers follow the order they were taken. */
   const addPhotos = useCallback(
     async (room: string, fileList: FileList | File[], opts: { live?: string } = {}) => {
       const files = Array.from(fileList).filter((f) => f.type.startsWith("image/") || /\.(heic|heif)$/i.test(f.name));
@@ -155,6 +158,15 @@ export function FlatWorkspace({ initialFlat, initialStep }: { initialFlat: FlatD
       }
     },
     [flat.id, goStep, step, toast],
+  );
+
+  /** Photos come only from ProofNest's live camera, so they can't be gallery images edited or made with AI. */
+  const openCamera = useCallback(
+    (room: string) => {
+      if (step !== "record") goStep("record");
+      setCamera(room);
+    },
+    [goStep, step],
   );
 
   const copySummary = useCallback(async () => {
@@ -321,7 +333,7 @@ export function FlatWorkspace({ initialFlat, initialStep }: { initialFlat: FlatD
         flat={flat}
         step={step}
         onStep={goStep}
-        onFiles={addPhotos}
+        onCamera={openCamera}
         onCopy={copySummary}
         onRunCheck={runCheck}
         onCopyLetter={copyLetter}
@@ -340,7 +352,7 @@ export function FlatWorkspace({ initialFlat, initialStep }: { initialFlat: FlatD
             setFlat={setFlat}
             pending={pending}
             freshIds={freshIds}
-            onFiles={addPhotos}
+            onCamera={openCamera}
             onZoom={setZoom}
             onCopy={copySummary}
             patchFlat={patchFlat}
@@ -365,6 +377,9 @@ export function FlatWorkspace({ initialFlat, initialStep }: { initialFlat: FlatD
       </section>
       </div>
       {drawerOpen && <DetailsDrawer flat={flat} patchFlat={patchFlat} onClose={() => setDrawerOpen(false)} />}
+      {camera && (
+        <CameraCapture room={camera} code={flat.dayCode} onShot={(file) => addPhotos(camera, [file], { live: flat.dayCode })} onClose={closeCamera} />
+      )}
       {agreementOpen && (
         <AgreementDrawer
           flat={flat}
@@ -477,7 +492,7 @@ function NextCard({
   flat,
   step,
   onStep,
-  onFiles,
+  onCamera,
   onCopy,
   onRunCheck,
   onCopyLetter,
@@ -487,7 +502,7 @@ function NextCard({
   flat: FlatDTO;
   step: Step;
   onStep: (s: Step) => void;
-  onFiles: (room: string, files: FileList) => void;
+  onCamera: (room: string) => void;
   onCopy: () => void;
   onRunCheck: () => void;
   onCopyLetter: () => void;
@@ -541,19 +556,9 @@ function NextCard({
       );
     }
     return (
-      <label className={`btn small file-btn ${cls}`}>
+      <button className={`btn small ${cls}`} type="button" onClick={() => onCamera(b.room)}>
         <Icon name="camera" small />{b.label}
-        <input
-          type="file"
-          accept="image/*"
-          multiple
-          aria-label={b.label}
-          onChange={(e) => {
-            if (e.target.files) onFiles(b.room, e.target.files);
-            e.target.value = "";
-          }}
-        />
-      </label>
+      </button>
     );
   };
   return (

@@ -246,8 +246,10 @@ export async function recordPhoto(flatId: string, input: RecordPhotoInput): Prom
     .returning({ next: flats.nextPhotoN });
 
   // A live photo is a JPEG from the camera screen stamped with this flat's current day code; it was taken just now.
-  const live = input.capture === "live" && input.contentType === "image/jpeg" && isCurrentDayCode(flat.id, String(input.dayCode ?? ""));
-  if (input.capture === "live" && !live) return { ok: false, error: "That photo's day code has expired. Reopen the camera and take it again." };
+  // Move-in photos must come from ProofNest's live camera: a JPEG stamped with this flat's current day code.
+  if (input.capture !== "live") return { ok: false, error: "Take photos with ProofNest's camera; gallery photos can't be added." };
+  const live = input.contentType === "image/jpeg" && isCurrentDayCode(flat.id, String(input.dayCode ?? ""));
+  if (!live) return { ok: false, error: "That photo's day code has expired. Reopen the camera and take it again." };
   // Only plausible capture times: cameras without a clock report the year 0, and a bad value would throw below.
   const takenMs = live ? Date.now() : typeof input.takenAt === "number" ? input.takenAt : NaN;
   const takenAt = Number.isFinite(takenMs) && takenMs >= Date.UTC(2000, 0, 1) && takenMs <= Date.now() + 86_400_000 ? new Date(takenMs) : null;
