@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { Icon } from "@/components/Icon";
-import { ProofSeal } from "@/components/ProofSeal";
 import { createExampleFlat } from "@/app/flats/actions";
 import { ExampleButton } from "./ExampleButton";
 import { getCurrentUser } from "@/lib/dal";
@@ -86,30 +85,74 @@ export default function Home() {
   );
 }
 
-/** A real-looking move-in record: the product's core idea, shown instead of described. */
+/** The product's core idea, shown rather than described: three sealed prints from a move-in record. */
 function SampleRecord() {
   return (
-    <figure className="exhibit" aria-label="Example of a sealed move-in photo">
-      <div className="ex-photo">
+    <div className="board" aria-label="Example: three photos from a move-in record, each sealed with its time">
+      <Print n={1} room="Kitchen" cond="damaged" note="Two cracked tiles by the sink" time="10:02 am">
         <TileWall />
-        <span className="ex-tag">P1</span>
-        <ProofSeal center="7QK4" sub="LIVE PHOTO" bottom="1 MAR 2024 · 10:02 IST" size={112} press label="Sealed: taken live on 1 Mar 2024 at 10:02 am IST, code 7QK4" />
-        <span className="ex-band">ProofNest · Kitchen · 1 Mar 2024, 10:02 am IST · Code 7QK4</span>
+      </Print>
+      <Print n={2} room="Bedroom" cond="worn" note="Wardrobe hinge loose" time="10:06 am">
+        <Wardrobe />
+      </Print>
+      <Print n={3} room="Hall" cond="good" note="Switchboard, walls clean" time="10:09 am">
+        <HallWall />
+      </Print>
+      <p className="board-note">
+        <span className="stamp">Sealed</span> Taken live in the flat, timestamped by a public authority, then confirmed by the owner.
+      </p>
+    </div>
+  );
+}
+
+function Print({ n, room, cond, note, time, children }: { n: number; room: string; cond: "good" | "worn" | "damaged"; note: string; time: string; children: React.ReactNode }) {
+  return (
+    <figure className={`bprint bp-${n}`}>
+      <span className="tape" aria-hidden="true" />
+      <div className="bimg">
+        {children}
+        <span className="ex-band">ProofNest · {room} · 1 Mar 2024, {time} · 7QK4</span>
       </div>
       <figcaption>
-        <div className="ex-head">
-          <b>Kitchen</b>
-          <span className="cond c-damaged">Damaged</span>
-        </div>
-        <p className="ex-note">Two cracked wall tiles next to the sink.</p>
-        <dl className="ex-facts">
-          <div><dt>Taken</dt><dd>1 Mar 2024, 10:02 am IST</dd></div>
-          <div><dt>Timestamped</dt><dd>freetsa.org, 10:02:41 am</dd></div>
-          <div><dt>Fingerprint</dt><dd>9f2c 4e8a 1b7d 3f6e…</dd></div>
-          <div className="ok"><dt>Owner</dt><dd>R. Sharma confirmed, 2 Mar 2024</dd></div>
-        </dl>
+        <span><b className="mono">P{n}</b> {room}</span>
+        <span className={`cond c-${cond}`}>{cond === "good" ? "Good" : cond === "worn" ? "Worn" : "Damaged"}</span>
+        <small>{note}</small>
       </figcaption>
     </figure>
+  );
+}
+
+/** A wardrobe door, slightly ajar on a loose hinge. */
+function Wardrobe() {
+  return (
+    <svg className="ex-wall" viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+      <rect width="400" height="300" fill="hsl(40 30% 86%)" />
+      <rect x="70" y="20" width="260" height="250" rx="3" fill="hsl(30 38% 52%)" />
+      <rect x="80" y="30" width="116" height="230" rx="2" fill="hsl(30 40% 57%)" />
+      <path d="M204 30 L322 36 L322 254 L204 260 Z" fill="hsl(30 40% 60%)" />
+      <rect x="198" y="30" width="6" height="230" fill="hsl(30 30% 28%)" />
+      <rect x="182" y="130" width="6" height="34" rx="3" fill="hsl(40 10% 85%)" />
+      <rect x="212" y="132" width="6" height="34" rx="3" fill="hsl(40 10% 85%)" />
+      <rect x="318" y="58" width="8" height="16" rx="1" fill="hsl(40 8% 70%)" transform="rotate(14 322 66)" />
+      <rect y="270" width="400" height="30" fill="hsl(30 15% 70%)" />
+    </svg>
+  );
+}
+
+/** A painted hall wall with a switchboard and a faded patch around it. */
+function HallWall() {
+  return (
+    <svg className="ex-wall" viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+      <rect width="400" height="300" fill="hsl(38 32% 84%)" />
+      <ellipse cx="200" cy="128" rx="92" ry="70" fill="hsl(38 30% 90%)" />
+      <rect x="150" y="96" width="100" height="64" rx="4" fill="hsl(40 20% 97%)" stroke="hsl(40 8% 74%)" />
+      {[0, 1, 2, 3].map((i) => (
+        <rect key={i} x={162 + i * 20} y="110" width="14" height="22" rx="2" fill="hsl(40 10% 88%)" stroke="hsl(40 6% 70%)" />
+      ))}
+      <circle cx="232" cy="146" r="5" fill="hsl(40 6% 70%)" />
+      <rect y="262" width="400" height="38" fill="hsl(30 12% 64%)" />
+      <rect y="258" width="400" height="6" fill="hsl(30 14% 72%)" />
+    </svg>
   );
 }
 

@@ -8,10 +8,12 @@ import { addRoom, deletePhoto, removeRoom, updatePhoto } from "@/app/flats/actio
 import { roomStats, withRecordChanged } from "@/lib/guidance";
 import { scheduleSave, sendOnUnload } from "@/lib/pending-saves";
 import { fmtDate, plural } from "@/lib/format";
+
+/** "10:02 am", in India time: the time a photo was sealed, printed on its polaroid. */
+const fmtTime = (iso: string) => new Date(iso).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", timeZone: "Asia/Kolkata" });
 import { daysLate, isEarlier } from "@/lib/photo-labels";
 import { CONDITIONS, type Condition, type FlatDTO, type FlatPatch, type PhotoDTO } from "@/lib/types";
 import { EvidenceButton } from "@/components/EvidenceButton";
-import { ProofSeal } from "@/components/ProofSeal";
 import { OwnerConfirm } from "./OwnerConfirm";
 
 type Props = {
@@ -73,7 +75,7 @@ export function RecordStep({ flat, setFlat, pending, freshIds, onCamera, onEarli
       </div>
 
       <div className="proofbar">
-        <ProofSeal center={flat.dayCode} size={48} tilt={-6} label={`Today's code, ${flat.dayCode}`} />
+        <span className="codechip" aria-hidden="true">{flat.dayCode}</span>
         <p>
           <b>Today&apos;s code is <code>{flat.dayCode}</code>.</b> ProofNest&apos;s camera prints it, with the room and time, on every photo. Gallery
           photos can&apos;t be added, so nobody can say yours were edited or made with AI.
@@ -304,6 +306,8 @@ export function PhotoCard({
 
   return (
     <figure className={`pcard ${photo.condition === "damaged" ? "cond-damaged" : ""} ${fresh ? "pop" : ""} ${leaving ? "leaving" : ""}`}>
+      <div className="print">
+      <span className="tape" aria-hidden="true" />
       <button className="pimg" type="button" onClick={() => onZoom(photo)} aria-label={`Enlarge photo P${photo.n}`}>
         {photo.src ? (
           // eslint-disable-next-line @next/next/no-img-element -- private, auth-checked image route
@@ -313,8 +317,20 @@ export function PhotoCard({
         )}
         <span className="ptag">P{photo.n}</span>
         {isEarlier(photo) && <span className="ptag earlier">Earlier · not verified</span>}
-        {sealed && <ProofSeal center={photo.dayCode} size={44} label={`Sealed: taken live, timestamped by ${photo.timestampBy}`} />}
       </button>
+      <figcaption className="pcap">
+        <span>
+          <b className="mono">P{photo.n}</b> {photo.room}
+        </span>
+        {sealed ? (
+          <span className="stamp" title={`Timestamped by ${photo.timestampBy}`}>Sealed{photo.timestampedAt ? ` · ${fmtTime(photo.timestampedAt)}` : ""}</span>
+        ) : isEarlier(photo) ? (
+          <span className="stamp u">Not verified</span>
+        ) : photo.capture === "live" ? (
+          <span className="stamp p">Sealing…</span>
+        ) : null}
+      </figcaption>
+      </div>
       <div className="pbody">
         <div className="seg" role="group" aria-label={`Condition of P${photo.n}`}>
           {(Object.keys(CONDITIONS) as Condition[]).map((c) => (
@@ -335,18 +351,7 @@ export function PhotoCard({
         <div className="pfoot">
           <span className="proofline">
             {taken}
-            {!photo.isExample && (
-              <>
-                <br />
-                {sealed ? (
-                  <span className="v">Sealed · {photo.timestampBy} · code {photo.dayCode}</span>
-                ) : photo.capture === "live" ? (
-                  <span>Taken live · code {photo.dayCode} · sealing…</span>
-                ) : (
-                  <span className="u">Gallery photo · not verified</span>
-                )}
-              </>
-            )}
+            {photo.capture === "live" && <><br />Code {photo.dayCode}{photo.timestampBy ? ` · ${photo.timestampBy}` : ""}</>}
             {photo.sha256 && <><br />#{photo.sha256.slice(0, 12)}</>}
           </span>
           <button
