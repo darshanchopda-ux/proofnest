@@ -19,5 +19,5 @@ export default async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/flats/:path*"],
+  matcher: ["/flats/:path*", "/account", "/join/:path*"],
 };
