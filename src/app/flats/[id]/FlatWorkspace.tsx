@@ -11,7 +11,9 @@ import { isMoveOut, nextAction, stepStates, summaryText, totals, withRecordChang
 import { depositMonths, fmtDate, money, plural, refundInfo } from "@/lib/format";
 import { flushSaves, scheduleSave, sendOnUnload } from "@/lib/pending-saves";
 import { exifDate, safeFileName, sha256Hex, toJpeg, UPLOADABLE } from "@/lib/photo-client";
-import { CONDITIONS, type AgreementDTO, type ChargeDTO, type FlatDTO, type FlatPatch, type PhotoDTO, type Step } from "@/lib/types";
+import { MoveOutStep } from "./MoveOutStep";
+import { CONDITIONS, type AgreementDTO, type ChargeDTO, type FlatDTO, type FlatPatch, type PhotoDTO, type PhotoPhase, type Step } from "@/lib/types";
+import { pendingKey, proofLine, withRetry } from "@/lib/photo-labels";
 import { AgreementDrawer, type AgreementReadState } from "./AgreementDrawer";
 import { CameraCapture } from "./CameraCapture";
 import { CheckStep, type CheckState } from "./CheckStep";
@@ -25,8 +27,9 @@ const isPdf = (f: File) => f.type === "application/pdf" || /\.pdf$/i.test(f.name
 
 const STEPS: { id: Step; n: number; when: string; title: string; short: string }[] = [
   { id: "record", n: 1, when: "At move-in", title: "Move-in record", short: "Move-in" },
-  { id: "check", n: 2, when: "At move-out", title: "Check deductions", short: "Check" },
-  { id: "letter", n: 3, when: "At move-out", title: "Refund letter", short: "Letter" },
+  { id: "moveout", n: 2, when: "At move-out", title: "Move-out record", short: "Move-out" },
+  { id: "check", n: 3, when: "At move-out", title: "Check deductions", short: "Check" },
+  { id: "letter", n: 4, when: "At move-out", title: "Refund letter", short: "Letter" },
 ];
 
 export function FlatWorkspace({ initialFlat, initialStep }: { initialFlat: FlatDTO; initialStep: Step }) {
@@ -41,7 +44,7 @@ export function FlatWorkspace({ initialFlat, initialStep }: { initialFlat: FlatD
   const [screenshot, setScreenshot] = useState<File | null>(null);
   const checkCtl = useRef<AbortController | null>(null);
   const [agreementOpen, setAgreementOpen] = useState(false);
-  const [camera, setCamera] = useState<string | null>(null);
+  const [camera, setCamera] = useState<{ room: string; phase: PhotoPhase } | null>(null);
   const closeCamera = useCallback(() => setCamera(null), []);
   const [agRead, setAgRead] = useState<AgreementReadState>({ phase: "idle", status: "", error: false, canRetry: false });
   const agCtl = useRef<AbortController | null>(null);
@@ -92,47 +95,58 @@ export function FlatWorkspace({ initialFlat, initialStep }: { initialFlat: FlatD
 
   /** Uploads camera photos one at a time so P-numbers follow the order they were taken. */
   const addPhotos = useCallback(
-    async (room: string, fileList: FileList | File[], opts: { live?: string } = {}) => {
+    async (room: string, fileList: FileList | File[], opts: { live?: string; earlier?: boolean; phase?: PhotoPhase } = {}) => {
       const files = Array.from(fileList).filter((f) => f.type.startsWith("image/") || /\.(heic|heif)$/i.test(f.name));
       if (!files.length) {
         toast("Pick photo files (JPEG, PNG or WebP).", "bad");
         return;
       }
-      if (step !== "record") goStep("record");
-      setPending((p) => ({ ...p, [room]: (p[room] ?? 0) + files.length }));
+      const phase = opts.phase ?? "movein";
+      const home: Step = phase === "moveout" ? "moveout" : "record";
+      if (step !== home) goStep(home);
+      const key = pendingKey(phase, room);
+      setPending((p) => ({ ...p, [key]: (p[key] ?? 0) + files.length }));
       let added = 0;
       const failed: string[] = [];
       for (const file of files) {
         try {
           const buf = await file.arrayBuffer();
           const [hash, takenExif] = [await sha256Hex(buf), exifDate(buf)];
-          const blob: Blob = UPLOADABLE.test(file.type) && file.size < 19.5 * 1024 * 1024 ? file : await toJpeg(file, 3200);
-          const ext = blob.type === "image/png" ? "png" : blob.type === "image/webp" ? "webp" : "jpg";
-          const uploaded = await upload(`flats/${flat.id}/photos/${safeFileName(file.name)}.${ext}`, blob, {
-            access: "private",
-            handleUploadUrl: "/api/upload",
-            clientPayload: JSON.stringify({ flatId: flat.id, kind: "photo" }),
-            contentType: blob.type || "image/jpeg",
-          });
-          const result = await recordPhoto(flat.id, {
-            pathname: uploaded.pathname,
-            contentType: uploaded.contentType || blob.type || "image/jpeg",
-            sizeBytes: blob.size,
-            room,
-            sha256: hash,
-            takenAt: opts.live ? Date.now() : (takenExif ?? (file.lastModified || null)),
-            takenFrom: opts.live || takenExif ? "camera" : "file",
-            ...(opts.live && { capture: "live" as const, dayCode: opts.live }),
-          });
+          // Photos are stored as JPEG; gallery photos in other formats are converted first.
+          const blob: Blob = file.type === "image/jpeg" && file.size < 19.5 * 1024 * 1024 ? file : await toJpeg(file, 3200);
+          // On a weak connection the upload is tried again a few times before the photo counts as failed.
+          const uploaded = await withRetry(() =>
+            upload(`flats/${flat.id}/photos/${safeFileName(file.name)}.jpg`, blob, {
+              access: "private",
+              handleUploadUrl: "/api/upload",
+              clientPayload: JSON.stringify({ flatId: flat.id, kind: "photo" }),
+              contentType: "image/jpeg",
+            }),
+          );
+          const result = await withRetry(() =>
+            recordPhoto(flat.id, {
+              pathname: uploaded.pathname,
+              contentType: uploaded.contentType || "image/jpeg",
+              sizeBytes: blob.size,
+              room,
+              sha256: hash,
+              takenAt: opts.live ? Date.now() : (takenExif ?? (file.lastModified || null)),
+              takenFrom: opts.live || takenExif ? "camera" : "file",
+              ...(opts.live && { capture: "live" as const, dayCode: opts.live }),
+              ...(opts.earlier && { earlier: true }),
+              phase,
+            }),
+          );
           if (!result.ok) throw new Error(result.error);
           added++;
           setFreshIds((s) => new Set(s).add(result.data.id));
           setFlat((f) =>
-            withRecordChanged({
-              ...f,
-              rooms: f.rooms.includes(room) ? f.rooms : [...f.rooms, room],
-              photos: [...f.photos, result.data].sort((a, b) => a.n - b.n),
-            }),
+            withRecordChanged(
+              phase === "moveout"
+                ? { ...f, moveOutPhotos: [...f.moveOutPhotos, result.data].sort((a, b) => a.n - b.n) }
+                : { ...f, rooms: f.rooms.includes(room) ? f.rooms : [...f.rooms, room], photos: [...f.photos, result.data].sort((a, b) => a.n - b.n) },
+              phase,
+            ),
           );
         } catch (e) {
           const message = e instanceof Error ? e.message : "";
@@ -147,13 +161,13 @@ export function FlatWorkspace({ initialFlat, initialStep }: { initialFlat: FlatD
                   : message || `${file.name} couldn't be added`,
           );
         } finally {
-          setPending((p) => ({ ...p, [room]: Math.max(0, (p[room] ?? 1) - 1) }));
+          setPending((p) => ({ ...p, [key]: Math.max(0, (p[key] ?? 1) - 1) }));
         }
       }
       // One message for the whole batch, so a failure isn't hidden behind the next toast.
       if (failed.length) {
         toast(`${added ? `${plural(added, "photo")} added to ${room}. ` : ""}${plural(failed.length, "photo")} couldn't be added: ${failed[0]}.`, "bad");
-      } else if (added) {
+      } else if (added && !opts.live) {
         toast(added === 1 ? `Photo added to ${room}.` : `${added} photos added to ${room}.`);
       }
     },
@@ -162,9 +176,10 @@ export function FlatWorkspace({ initialFlat, initialStep }: { initialFlat: FlatD
 
   /** Photos come only from ProofNest's live camera, so they can't be gallery images edited or made with AI. */
   const openCamera = useCallback(
-    (room: string) => {
-      if (step !== "record") goStep("record");
-      setCamera(room);
+    (room: string, phase: PhotoPhase = "movein") => {
+      const home: Step = phase === "moveout" ? "moveout" : "record";
+      if (step !== home) goStep(home);
+      setCamera({ room, phase });
     },
     [goStep, step],
   );
@@ -337,9 +352,10 @@ export function FlatWorkspace({ initialFlat, initialStep }: { initialFlat: FlatD
         onCopy={copySummary}
         onRunCheck={runCheck}
         onCopyLetter={copyLetter}
-        onOwner={() => {
-          if (step !== "record") goStep("record");
-          setTimeout(() => document.getElementById("owner-confirm")?.scrollIntoView({ behavior: "smooth", block: "center" }), 80);
+        onOwner={(phase) => {
+          const home: Step = phase === "moveout" ? "moveout" : "record";
+          if (step !== home) goStep(home);
+          setTimeout(() => document.getElementById(phase === "moveout" ? "owner-confirm-moveout" : "owner-confirm")?.scrollIntoView({ behavior: "smooth", block: "center" }), 80);
         }}
         running={check.running}
       />
@@ -353,9 +369,22 @@ export function FlatWorkspace({ initialFlat, initialStep }: { initialFlat: FlatD
             pending={pending}
             freshIds={freshIds}
             onCamera={openCamera}
+            onEarlier={(room, files) => addPhotos(room, files, { earlier: true })}
             onZoom={setZoom}
             onCopy={copySummary}
             patchFlat={patchFlat}
+          />
+        )}
+        {step === "moveout" && (
+          <MoveOutStep
+            flat={flat}
+            setFlat={setFlat}
+            pending={pending}
+            freshIds={freshIds}
+            onCamera={(room) => openCamera(room, "moveout")}
+            onZoom={setZoom}
+            patchFlat={patchFlat}
+            onStep={goStep}
           />
         )}
         {step === "check" && (
@@ -378,7 +407,13 @@ export function FlatWorkspace({ initialFlat, initialStep }: { initialFlat: FlatD
       </div>
       {drawerOpen && <DetailsDrawer flat={flat} patchFlat={patchFlat} onClose={() => setDrawerOpen(false)} />}
       {camera && (
-        <CameraCapture room={camera} code={flat.dayCode} onShot={(file) => addPhotos(camera, [file], { live: flat.dayCode })} onClose={closeCamera} />
+        <CameraCapture
+          room={camera.room}
+          label={camera.phase === "moveout" ? `${camera.room} · move-out` : camera.room}
+          code={flat.dayCode}
+          onShot={(file) => addPhotos(camera.room, [file], { live: flat.dayCode, phase: camera.phase })}
+          onClose={closeCamera}
+        />
       )}
       {agreementOpen && (
         <AgreementDrawer
@@ -502,11 +537,11 @@ function NextCard({
   flat: FlatDTO;
   step: Step;
   onStep: (s: Step) => void;
-  onCamera: (room: string) => void;
+  onCamera: (room: string, phase?: PhotoPhase) => void;
   onCopy: () => void;
   onRunCheck: () => void;
   onCopyLetter: () => void;
-  onOwner: () => void;
+  onOwner: (phase: PhotoPhase) => void;
   running: boolean;
 }) {
   const action = nextAction(flat);
@@ -536,7 +571,7 @@ function NextCard({
     }
     if (b.kind === "owner") {
       return (
-        <button className={`btn small ${cls}`} type="button" onClick={onOwner}>
+        <button className={`btn small ${cls}`} type="button" onClick={() => onOwner(b.phase ?? "movein")}>
           <Icon name="chat" small />{b.label}
         </button>
       );
@@ -556,7 +591,7 @@ function NextCard({
       );
     }
     return (
-      <button className={`btn small ${cls}`} type="button" onClick={() => onCamera(b.room)}>
+      <button className={`btn small ${cls}`} type="button" onClick={() => onCamera(b.room, b.phase)}>
         <Icon name="camera" small />{b.label}
       </button>
     );
@@ -595,6 +630,7 @@ function Lightbox({ photo, onClose }: { photo: PhotoDTO; onClose: () => void }) 
               {photo.note ? ` · ${photo.note}` : ""}
               <div className="pmeta" style={{ marginTop: 4 }}>
                 {photo.takenAt && `${photo.takenFrom === "camera" ? "Taken" : "File date"} ${fmtDate(photo.takenAt, true)}`}
+                {!photo.isExample && <><br />{proofLine(photo)}</>}
                 {photo.sha256 && <><br />SHA-256 {photo.sha256}</>}
               </div>
             </div>

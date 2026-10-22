@@ -1,11 +1,18 @@
 import type { IconName } from "@/components/Icon";
 import { fmtDate, fmtIST, listWords, money, plural } from "./format";
-import { CONDITIONS, DISPUTED, type ChargeDTO, type FlatDTO, type Step } from "./types";
+import { CONDITIONS, DISPUTED, type ChargeDTO, type FlatDTO, type PhotoPhase, type Step } from "./types";
 
 export type RoomStat = { name: string; count: number };
 
 /** After any photo changes, an owner link no longer matches the record exactly; the server confirms this on reload. */
-export function withRecordChanged(f: FlatDTO): FlatDTO {
+export function withRecordChanged(f: FlatDTO, phase: PhotoPhase = "movein"): FlatDTO {
+  if (phase === "moveout") {
+    return {
+      ...f,
+      moveOutReview: f.moveOutReview && { ...f.moveOutReview, stale: true },
+      moveOutAnswer: f.moveOutAnswer && { ...f.moveOutAnswer, stale: true },
+    };
+  }
   return {
     ...f,
     ownerReview: f.ownerReview && { ...f.ownerReview, stale: true },
@@ -35,17 +42,29 @@ export function stepStates(flat: FlatDTO): Record<Step, StepState> {
   const cov = coverage(flat);
   return {
     record: cov.total && cov.covered === cov.total ? "done" : flat.photos.length ? "partial" : "todo",
+    moveout: !flat.moveOutPhotos.length ? "todo" : moveOutRooms(flat).every((r) => r.after) ? "done" : "partial",
     check: flat.charges.length ? "done" : "todo",
     letter: flat.letter.trim() ? "done" : "todo",
   };
 }
 
+/** Rooms for the move-out record: every room of the flat, with how many photos it has from each visit. */
+export function moveOutRooms(flat: FlatDTO): { name: string; before: number; after: number }[] {
+  const names = roomStats(flat).map((r) => r.name);
+  for (const p of flat.moveOutPhotos) if (!names.includes(p.room)) names.push(p.room);
+  return names.map((name) => ({
+    name,
+    before: flat.photos.filter((p) => p.room === name).length,
+    after: flat.moveOutPhotos.filter((p) => p.room === name).length,
+  }));
+}
+
 export type NextButton =
-  | { kind: "upload"; label: string; room: string }
+  | { kind: "upload"; label: string; room: string; phase?: PhotoPhase }
   | { kind: "step"; label: string; step: Step; icon?: IconName }
   | { kind: "copy-summary"; label: string }
   | { kind: "link"; label: string; href: string; icon: IconName }
-  | { kind: "owner"; label: string }
+  | { kind: "owner"; label: string; phase?: PhotoPhase }
   | { kind: "run-check"; label: string }
   | { kind: "copy-letter"; label: string };
 
@@ -114,6 +133,20 @@ export function nextAction(flat: FlatDTO): NextAction {
       secondary: pdf,
     };
   }
+  if (!flat.charges.length && !flat.deductionsText.trim()) {
+    const todo = moveOutRooms(flat).filter((r) => !r.after);
+    if (!flat.moveOutPhotos.length || (todo.length && !flat.keysHandedOver)) {
+      const room = todo[0]?.name ?? "Living room";
+      return {
+        key: `moveout-${todo.length}`,
+        icon: "camera",
+        title: flat.moveOutPhotos.length ? `${plural(todo.length, "room")} left to photograph` : "Photograph the flat as you hand it back",
+        text: "Before you return the keys, take the same photos again, room by room. Owners usually deduct for things nobody can prove either way.",
+        primary: { kind: "upload", label: `Take ${room} photos`, room, phase: "moveout" },
+        secondary: { kind: "step", label: "Skip to deductions", step: "check" },
+      };
+    }
+  }
   if (!flat.charges.length) {
     if (flat.deductionsText.trim()) {
       return {
@@ -128,8 +161,8 @@ export function nextAction(flat: FlatDTO): NextAction {
       key: "paste",
       icon: "chat",
       title: "Paste what the owner wants to deduct",
-      text: "Copy the owner's WhatsApp message or email into step 2, or add a screenshot of it.",
-      primary: { kind: "step", label: "Go to step 2", step: "check", icon: "arrow" },
+      text: "Copy the owner's WhatsApp message or email into step 3, or add a screenshot of it.",
+      primary: { kind: "step", label: "Go to step 3", step: "check", icon: "arrow" },
     };
   }
   if (!flat.letter.trim()) {

@@ -29,8 +29,8 @@ export function LetterStep({ flat, patchFlat, onStep, onCopy }: Props) {
         <Head />
         <div className="empty">
           <b>Check the deductions first</b>
-          <span>Your letter is built from what you decide about each charge in step 2.</span>
-          <button className="btn small" type="button" onClick={() => onStep("check")}>Go to step 2 <Icon name="arrow" small /></button>
+          <span>Your letter is built from what you decide about each charge in step 3.</span>
+          <button className="btn small" type="button" onClick={() => onStep("check")}>Go to step 3 <Icon name="arrow" small /></button>
         </div>
       </>
     );

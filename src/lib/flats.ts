@@ -57,6 +57,7 @@ export function toChargeDTO(c: Charge): ChargeDTO {
     reason: c.reason,
     confidence: c.confidence,
     source: c.source === "manual" ? "manual" : "ai",
+    aiFlagged: c.aiFlagged,
   };
 }
 
@@ -81,13 +82,17 @@ export async function listCharges(flatId: string): Promise<ChargeDTO[]> {
 export async function getFlatDTO(userId: string, flatId: string): Promise<FlatDTO | null> {
   const flat = await getOwnedFlat(userId, flatId);
   if (!flat) return null;
-  const [photoRows, agreementRows, chargeList, review, answered] = await Promise.all([
+  const [allPhotos, agreementRows, chargeList, review, answered, outReview, outAnswered] = await Promise.all([
     db.select().from(photos).where(eq(photos.flatId, flat.id)).orderBy(asc(photos.n)),
     db.select().from(agreements).where(eq(agreements.flatId, flat.id)).limit(1),
     listCharges(flat.id),
-    latestReview(flat.id),
-    latestAnswered(flat.id),
+    latestReview(flat.id, "movein"),
+    latestAnswered(flat.id, "movein"),
+    latestReview(flat.id, "moveout"),
+    latestAnswered(flat.id, "moveout"),
   ]);
+  const photoRows = allPhotos.filter((p) => p.phase !== "moveout");
+  const outRows = allPhotos.filter((p) => p.phase === "moveout");
   return {
     id: flat.id,
     stage: flat.stage,
@@ -109,6 +114,9 @@ export async function getFlatDTO(userId: string, flatId: string): Promise<FlatDT
     dayCode: dayCode(flat.id),
     ownerReview: review ? toOwnerReviewDTO(review, photoRows) : null,
     ownerAnswer: answered ? toOwnerReviewDTO(answered, photoRows) : null,
+    moveOutPhotos: outRows.map(toPhotoDTO),
+    moveOutReview: outReview ? toOwnerReviewDTO(outReview, outRows) : null,
+    moveOutAnswer: outAnswered ? toOwnerReviewDTO(outAnswered, outRows) : null,
     charges: chargeList,
     analyzedAt: flat.analyzedAt ? flat.analyzedAt.toISOString() : null,
   };

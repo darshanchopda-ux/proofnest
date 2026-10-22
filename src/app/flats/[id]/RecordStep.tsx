@@ -8,6 +8,7 @@ import { addRoom, deletePhoto, removeRoom, updatePhoto } from "@/app/flats/actio
 import { roomStats, withRecordChanged } from "@/lib/guidance";
 import { scheduleSave, sendOnUnload } from "@/lib/pending-saves";
 import { fmtDate, plural } from "@/lib/format";
+import { daysLate, isEarlier, proofLine } from "@/lib/photo-labels";
 import { CONDITIONS, type Condition, type FlatDTO, type FlatPatch, type PhotoDTO } from "@/lib/types";
 import { EvidenceButton } from "@/components/EvidenceButton";
 import { OwnerConfirm } from "./OwnerConfirm";
@@ -19,15 +20,24 @@ type Props = {
   freshIds: Set<string>;
   /** Opens ProofNest's camera for a room: the only way to add move-in photos. */
   onCamera: (room: string) => void;
+  /** Adds gallery photos taken before the tenant started using ProofNest, marked "not verified". */
+  onEarlier: (room: string, files: FileList) => void;
   onZoom: (photo: PhotoDTO) => void;
   onCopy: () => void;
   patchFlat: (patch: FlatPatch, delay?: number) => void;
 };
 
-export function RecordStep({ flat, setFlat, pending, freshIds, onCamera, onZoom, onCopy, patchFlat }: Props) {
+/** Today's date in India, as YYYY-MM-DD. */
+const todayIST = () => new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 10);
+
+export function RecordStep({ flat, setFlat, pending, freshIds, onCamera, onEarlier, onZoom, onCopy, patchFlat }: Props) {
   const toast = useToast();
   const rooms = roomStats(flat);
   const [newRoom, setNewRoom] = useState("");
+  // Earlier gallery photos only make sense for a tenant who moved in before they started using ProofNest.
+  const movedInEarlier = !!flat.moveIn && flat.moveIn < todayIST();
+  const late = daysLate(flat.moveIn, flat.photos);
+  const earlierCount = flat.photos.filter(isEarlier).length;
 
   async function submitRoom(e: FormEvent) {
     e.preventDefault();
@@ -69,6 +79,19 @@ export function RecordStep({ flat, setFlat, pending, freshIds, onCamera, onZoom,
         </span>
       </p>
 
+      {(late > 1 || earlierCount > 0) && (
+        <p className="notice late">
+          {late > 1 && <>You started this record {plural(late, "day")} after moving in ({fmtDate(flat.moveIn!)}); your record and PDF say so. </>}
+          {earlierCount > 0 && (
+            <>
+              {plural(earlierCount, "earlier photo")} from your gallery {earlierCount === 1 ? "is" : "are"} kept as supporting evidence and marked
+              &ldquo;not verified&rdquo;, since ProofNest can&apos;t confirm when they were taken.
+            </>
+          )}
+          {late > 1 && !earlierCount && <>If you have photos from move-in day in your gallery, add them to each room as earlier photos.</>}
+        </p>
+      )}
+
       <details className="tips">
         <summary>
           <Icon name="camera" small />How to take move-in photos that hold up<Icon name="chevron" small className="chev" />
@@ -109,10 +132,11 @@ export function RecordStep({ flat, setFlat, pending, freshIds, onCamera, onZoom,
           onZoom={onZoom}
           onRemove={() => dropRoom(r.name)}
           onCamera={() => onCamera(r.name)}
+          onEarlier={movedInEarlier ? (files) => onEarlier(r.name, files) : undefined}
         />
       ))}
 
-      {flat.photos.length > 0 && <OwnerConfirm flat={flat} setFlat={setFlat} />}
+      {flat.photos.length > 0 && <OwnerConfirm flat={flat} setFlat={setFlat} kind="movein" />}
 
       <div className="evidence-field">
         <label className="lab" htmlFor="f-evidence">Other evidence</label>
@@ -140,6 +164,7 @@ function Room({
   onZoom,
   onRemove,
   onCamera,
+  onEarlier,
 }: {
   index: number;
   name: string;
@@ -151,6 +176,7 @@ function Room({
   onZoom: (photo: PhotoDTO) => void;
   onRemove: () => void;
   onCamera: () => void;
+  onEarlier?: (files: FileList) => void;
 }) {
   return (
     <section className="room" id={`room-${index}`}>
@@ -179,11 +205,27 @@ function Room({
           <span>Opens the camera; photos are stamped with the time and today&apos;s code</span>
         </button>
       </div>
+      {onEarlier && (
+        <label className="linkbtn earlier-pick">
+          Add earlier photos from your gallery (marked not verified)
+          <input
+            type="file"
+            accept="image/*"
+            multiple
+            className="sr"
+            aria-label={`Add earlier photos of the ${name} from your gallery`}
+            onChange={(e) => {
+              if (e.target.files?.length) onEarlier(e.target.files);
+              e.target.value = "";
+            }}
+          />
+        </label>
+      )}
     </section>
   );
 }
 
-function PhotoCard({
+export function PhotoCard({
   photo,
   fresh,
   flatId,
@@ -200,8 +242,10 @@ function PhotoCard({
   const [armed, setArmed] = useState(false);
   const [leaving, setLeaving] = useState(false);
 
+  const list = photo.phase === "moveout" ? "moveOutPhotos" : "photos";
+
   function setLocal(patch: Partial<PhotoDTO>) {
-    setFlat((f) => withRecordChanged({ ...f, photos: f.photos.map((p) => (p.id === photo.id ? { ...p, ...patch } : p)) }));
+    setFlat((f) => withRecordChanged({ ...f, [list]: f[list].map((p) => (p.id === photo.id ? { ...p, ...patch } : p)) }, photo.phase));
   }
 
   async function save(patch: { condition?: Condition; note?: string }) {
@@ -240,14 +284,11 @@ function PhotoCard({
       setLeaving(false);
       return toast(result.error, "bad");
     }
-    setTimeout(() => setFlat((f) => withRecordChanged({ ...f, photos: f.photos.filter((p) => p.id !== photo.id) })), 200);
+    setTimeout(() => setFlat((f) => withRecordChanged({ ...f, [list]: f[list].filter((p) => p.id !== photo.id) }, photo.phase)), 200);
   }
 
   const taken = photo.takenAt ? `${photo.takenFrom === "camera" ? "Taken" : "File date"} ${fmtDate(photo.takenAt, true)}` : "Capture time unknown";
-  const proof = [
-    photo.capture === "live" ? `Taken live · code ${photo.dayCode}` : "Uploaded",
-    photo.timestampedAt ? `timestamped by ${photo.timestampBy}` : photo.isExample ? "" : "timestamp pending",
-  ].filter(Boolean).join(" · ");
+  const proof = photo.isExample ? "" : proofLine(photo);
 
   return (
     <figure className={`pcard ${photo.condition === "damaged" ? "cond-damaged" : ""} ${fresh ? "pop" : ""} ${leaving ? "leaving" : ""}`}>
@@ -259,6 +300,7 @@ function PhotoCard({
           <span className="ph">Example photo: {photo.note}</span>
         )}
         <span className="ptag">P{photo.n}</span>
+        {isEarlier(photo) && <span className="ptag earlier">Earlier · not verified</span>}
       </button>
       <div className="pbody">
         <div className="seg" role="group" aria-label={`Condition of P${photo.n}`}>

@@ -7,12 +7,12 @@ export function templateLetter(flat: FlatDTO): string {
   const t = totals(flat.charges);
   const deposit = Number(flat.deposit) || 0;
   const owner = flat.ownerName || "[Owner's name]";
-  const photoByN = new Map(flat.photos.map((p) => [p.n, p]));
+  const photoByN = new Map([...flat.photos, ...flat.moveOutPhotos].map((p) => [p.n, p]));
   const cite = (ns: number[]) => {
     const refs = ns
       .map((n) => photoByN.get(n))
       .filter((p) => p != null)
-      .map((p) => `Photo P${p.n} (${p.room}${p.takenAt ? `, taken ${fmtDate(p.takenAt)}` : ""})`);
+      .map((p) => `Photo P${p.n} (${p.room}${p.phase === "moveout" ? " at move-out" : ""}${p.takenAt ? `, taken ${fmtDate(p.takenAt)}` : ""})`);
     return refs.length ? ` ${refs.join(" and ")} ${refs.length > 1 ? "show" : "shows"} this.` : "";
   };
 

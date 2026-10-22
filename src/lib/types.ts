@@ -2,7 +2,8 @@ import type { AgreementClause, AgreementFacts } from "@/db/schema";
 
 export type Condition = "good" | "worn" | "damaged";
 export type Stage = "movein" | "moveout";
-export type Step = "record" | "check" | "letter";
+export type Step = "record" | "moveout" | "check" | "letter";
+export type PhotoPhase = "movein" | "moveout";
 
 export const CONDITIONS: Record<Condition, string> = { good: "Good", worn: "Worn", damaged: "Damaged" };
 
@@ -22,7 +23,7 @@ export type PhotoDTO = {
   /** "live" when taken with ProofNest's camera screen, stamped with the day code; "upload" for any other file. */
   capture: "live" | "upload";
   /** Taken for the move-in record, or at key handover. */
-  phase: "movein" | "moveout";
+  phase: PhotoPhase;
   dayCode: string;
   /** When a public timestamp authority signed this photo's fingerprint, and which one. */
   timestampedAt: string | null;
@@ -59,6 +60,8 @@ export type ChargeDTO = {
   reason: string;
   confidence: number | null;
   source: "ai" | "manual";
+  /** The tenant said the AI's reading of this charge is wrong; its reason is then left out of the letter. */
+  aiFlagged: boolean;
 };
 
 export type FlatDTO = {
@@ -85,6 +88,11 @@ export type FlatDTO = {
   ownerReview: OwnerReviewDTO | null;
   /** The owner's latest answer, which stays the evidence while a newer link waits. */
   ownerAnswer: OwnerReviewDTO | null;
+  /** Photos taken at key handover, compared room by room with the move-in ones. */
+  moveOutPhotos: PhotoDTO[];
+  /** The same owner link and answer, for the move-out photos. */
+  moveOutReview: OwnerReviewDTO | null;
+  moveOutAnswer: OwnerReviewDTO | null;
   charges: ChargeDTO[];
   analyzedAt: string | null;
 };

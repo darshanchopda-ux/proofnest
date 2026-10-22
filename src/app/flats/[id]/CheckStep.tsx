@@ -3,7 +3,7 @@
 import { useEffect, useState, type Dispatch, type FormEvent, type SetStateAction } from "react";
 import { Icon } from "@/components/Icon";
 import { useToast } from "@/components/Toast";
-import { addCharge, deleteCharge, setChargeDecision } from "@/app/flats/actions";
+import { addCharge, deleteCharge, flagCharge, setChargeDecision } from "@/app/flats/actions";
 import { totals } from "@/lib/guidance";
 import { fmtDate, money, plural } from "@/lib/format";
 import { AI_LABEL, DECISIONS, type ChargeDTO, type Decision, type FlatDTO, type FlatPatch, type PhotoDTO } from "@/lib/types";
@@ -46,7 +46,7 @@ export function CheckStep({ flat, setFlat, patchFlat, check, screenshot, setScre
     return () => clearInterval(id);
   }, [check.running]);
 
-  const photoByN = new Map(flat.photos.map((p) => [p.n, p]));
+  const photoByN = new Map([...flat.photos, ...flat.moveOutPhotos].map((p) => [p.n, p]));
   const real = flat.photos.filter((p) => p.src);
   const noted = flat.photos.filter((p) => p.note).length;
   const t = totals(flat.charges);
@@ -65,6 +65,18 @@ export function CheckStep({ flat, setFlat, patchFlat, check, screenshot, setScre
     if (error) {
       put(before);
       toast(error, "bad");
+    }
+  }
+
+  async function flag(c: ChargeDTO, flagged: boolean) {
+    const put = (v: boolean) => setFlat((f) => ({ ...f, charges: f.charges.map((x) => (x.id === c.id ? { ...x, aiFlagged: v } : x)) }));
+    put(flagged);
+    try {
+      const result = await flagCharge(flat.id, c.id, flagged);
+      if (!result.ok) throw new Error(result.error);
+    } catch (e) {
+      put(!flagged);
+      toast(e instanceof Error && e.message ? e.message : "Couldn't save that. Check your connection and try again.", "bad");
     }
   }
 
@@ -209,7 +221,7 @@ export function CheckStep({ flat, setFlat, patchFlat, check, screenshot, setScre
           </div>
           <div className="rows">
             {flat.charges.map((c, i) => (
-              <ChargeRow key={c.id} charge={c} index={i} fresh={fresh === c.id} photoByN={photoByN} onDecide={decide} onRemove={remove} onZoom={onZoom} />
+              <ChargeRow key={c.id} charge={c} index={i} fresh={fresh === c.id} photoByN={photoByN} onDecide={decide} onFlag={flag} onRemove={remove} onZoom={onZoom} />
             ))}
           </div>
         </div>
@@ -237,6 +249,7 @@ function ChargeRow({
   fresh,
   photoByN,
   onDecide,
+  onFlag,
   onRemove,
   onZoom,
 }: {
@@ -245,6 +258,7 @@ function ChargeRow({
   fresh: boolean;
   photoByN: Map<number, PhotoDTO>;
   onDecide: (c: ChargeDTO, d: Decision) => void;
+  onFlag: (c: ChargeDTO, flagged: boolean) => void;
   onRemove: (c: ChargeDTO) => Promise<boolean>;
   onZoom: (p: PhotoDTO) => void;
 }) {
@@ -272,7 +286,19 @@ function ChargeRow({
           return p ? <button key={n} type="button" className="pref" onClick={() => onZoom(p)}>P{n}</button> : null;
         })}
       </div>
-      {c.reason && <p className="row-reason">{c.reason}</p>}
+      {c.reason && <p className={`row-reason ${c.aiFlagged ? "flagged" : ""}`}>{c.reason}</p>}
+      {c.aiVerdict && (
+        <p className="row-flag">
+          {c.aiFlagged ? (
+            <>
+              You said the AI got this wrong. Only your decision counts, and its reason stays out of your letter.{" "}
+              <button className="linkbtn" type="button" onClick={() => onFlag(c, false)}>Undo</button>
+            </>
+          ) : (
+            <button className="linkbtn" type="button" onClick={() => onFlag(c, true)}>The AI got this wrong</button>
+          )}
+        </p>
+      )}
       <div className="row-decide">
         <label htmlFor={`vd-${c.id}`}>Your decision</label>
         <select id={`vd-${c.id}`} value={c.decision} onChange={(e) => onDecide(c, e.target.value as Decision)}>

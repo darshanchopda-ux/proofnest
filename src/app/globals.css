@@ -527,3 +527,32 @@ body:has(.owner-page) .usermenu { display: none; }
 .phone-field input { flex: 1; border: 0; border-radius: 0; box-shadow: none !important; font-size: 1.05rem; letter-spacing: .02em; }
 .code-input { font-family: var(--mono); font-size: 1.6rem !important; letter-spacing: .5em; text-align: center; padding: 12px !important; }
 .auth-alt { justify-self: center; font-size: .86rem; }
+
+/* camera: low light and torch */
+.cam-dark { position: absolute; left: 50%; top: 14px; transform: translateX(-50%); max-width: min(90%, 40ch); margin: 0; padding: 8px 12px; border-radius: 8px; background: rgba(154, 91, 0, .92); color: #fff; font-size: .86rem; text-align: center; }
+.cam-torch { position: absolute; right: 14px; bottom: 14px; padding: 8px 14px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, .5); background: rgba(0, 0, 0, .5); color: #fff; font: 600 .84rem var(--body); cursor: pointer; }
+.cam-torch[aria-pressed="true"] { background: #fff; color: #111; }
+
+/* earlier gallery photos and late records */
+.pimg .ptag.earlier { left: auto; right: 8px; font-family: var(--body); background: var(--warn-soft); color: var(--warn); }
+.notice.late { margin: -6px 0 16px; background: var(--warn-soft); border-color: transparent; color: var(--ink); }
+.earlier-pick { position: relative; margin-top: 10px; font-size: .84rem; }
+.earlier-pick input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+
+/* move-out record */
+.mo-handover { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 18px; }
+.mo-handover .lab { margin: 0; }
+.mo-handover input { width: auto; }
+.mo-handover .hint { margin: 0; }
+.mo-before { margin-bottom: 12px; }
+.mo-before .mini, .mo-room .mini { display: block; margin: 0 0 6px; font-size: .8rem; color: var(--muted); }
+.mo-strip { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
+.mo-thumb { flex: none; display: grid; gap: 4px; width: 104px; padding: 0; border: 0; background: none; color: var(--muted); font: 500 .74rem var(--body); text-align: left; cursor: zoom-in; }
+.mo-thumb img, .mo-thumb .ph { width: 104px; height: 78px; object-fit: cover; border-radius: 6px; border: 1px solid var(--rule); background: var(--paper); }
+.mo-thumb.c-damaged img { border-color: var(--bad); }
+.mo-thumb.c-worn img { border-color: var(--warn); }
+.op-role { border: 0; padding: 0; margin: 0; min-width: 0; }
+.op-role .seg button { font-size: .86rem; padding: 9px 4px; }
+.row-reason.flagged { text-decoration: line-through; opacity: .7; }
+.row-flag { margin: 2px 0 0; font-size: .84rem; color: var(--muted); }
+.row-flag .linkbtn { font-size: .84rem; padding: 0; }

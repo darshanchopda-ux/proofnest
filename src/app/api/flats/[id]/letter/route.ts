@@ -20,8 +20,9 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   const flat = await getOwnedFlat(user.id, id);
   if (!flat) return NextResponse.json({ ok: false, error: "That flat wasn't found in your account." }, { status: 404 });
 
-  const chargeList = await listCharges(flat.id);
-  if (!chargeList.length) return NextResponse.json({ ok: false, error: "Check your deductions in step 2 first." }, { status: 400 });
+  // Charges where the tenant said the AI was wrong go without the AI's verdict and reason; only the tenant's decision counts.
+  const chargeList = (await listCharges(flat.id)).map((c) => (c.aiFlagged ? { ...c, aiVerdict: null, reason: "", confidence: null } : c));
+  if (!chargeList.length) return NextResponse.json({ ok: false, error: "Check your deductions in step 3 first." }, { status: 400 });
   if (await overRunLimit(user.id)) {
     return NextResponse.json({ ok: false, error: "That's a lot of requests in the last hour. Wait a little, then try again." }, { status: 429 });
   }

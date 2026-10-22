@@ -159,7 +159,7 @@ export const aiRuns = pgTable(
 );
 
 /** One photo exactly as the owner was shown it, so a confirmation always refers to a fixed record. */
-export type ReviewPhoto = { id: string; n: number; room: string; condition: "good" | "worn" | "damaged"; note: string; sha256: string; takenAt: string | null; takenFrom: string };
+export type ReviewPhoto = { id: string; n: number; room: string; condition: "good" | "worn" | "damaged"; note: string; sha256: string; takenAt: string | null; takenFrom: string; capture?: "live" | "upload"; phase?: "movein" | "moveout" };
 
 /**
  * A link the tenant sends the owner (usually on WhatsApp) to confirm the move-in record without an account.

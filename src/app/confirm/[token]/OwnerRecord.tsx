@@ -5,8 +5,8 @@ import { ConfirmForm } from "./ConfirmForm";
 
 type Props = {
   token: string;
-  review: Pick<OwnerReview, "photos" | "status" | "ownerName" | "ownerNote" | "respondedAt" | "recordHash">;
-  flat: { address: string; ownerName: string; tenantName: string; moveIn: string | null };
+  review: Pick<OwnerReview, "photos" | "status" | "ownerName" | "ownerNote" | "respondedAt" | "recordHash"> & Partial<Pick<OwnerReview, "kind" | "ownerRole">>;
+  flat: { address: string; ownerName: string; tenantName: string; moveIn: string | null; keysHandedOver?: string | null };
 };
 
 /** The owner's view of a shared move-in record: the photos as they were when the link was made, and the answer form. */
@@ -14,21 +14,30 @@ export function OwnerRecord({ token, review, flat }: Props) {
   const tenant = flat.tenantName || "Your tenant";
   const rooms = [...new Set(review.photos.map((p) => p.room))];
   const flagged = review.photos.filter((p) => p.condition !== "good");
+  const out = review.kind === "moveout";
 
   return (
     <div className="wrap owner-page">
       <header className="op-head">
-        <p className="eyebrow">Move-in record shared with you</p>
+        <p className="eyebrow">{out ? "Move-out record shared with you" : "Move-in record shared with you"}</p>
         <h1>{flat.address}</h1>
-        <p>
-          {tenant} took these {plural(review.photos.length, "photo")} on move-in day{flat.moveIn ? ` (${fmtDate(flat.moveIn)})` : ""} and is asking
-          you to confirm they show the flat&apos;s condition. A record you both agree on now makes the deposit easy to settle at move-out.
-        </p>
+        {out ? (
+          <p>
+            {tenant} took these {plural(review.photos.length, "photo")} while handing the flat back
+            {flat.keysHandedOver ? ` (${fmtDate(flat.keysHandedOver)})` : ""} and is asking you to confirm they show its condition. Agreeing on
+            this now lets the deposit be settled quickly.
+          </p>
+        ) : (
+          <p>
+            {tenant} took these {plural(review.photos.length, "photo")} on move-in day{flat.moveIn ? ` (${fmtDate(flat.moveIn)})` : ""} and is asking
+            you to confirm they show the flat&apos;s condition. A record you both agree on now makes the deposit easy to settle at move-out.
+          </p>
+        )}
       </header>
 
       {flagged.length > 0 && (
         <section className="rp-sec rp-issues">
-          <h2>Already worn or damaged when they moved in</h2>
+          <h2>{out ? "Worn or damaged at handover" : "Already worn or damaged when they moved in"}</h2>
           <ul>
             {flagged.map((p) => (
               <li key={p.id}>
@@ -56,9 +65,13 @@ export function OwnerRecord({ token, review, flat }: Props) {
                   <div className="rp-cap">
                     <b>P{p.n}</b>
                     <span className={`rp-cond c-${p.condition}`}>{CONDITIONS[p.condition]}</span>
+                    {p.capture === "upload" && p.sha256 && <span className="rp-cond c-worn">Earlier photo</span>}
                   </div>
                   {p.note && <p>{p.note}</p>}
-                  <small>{p.takenAt ? `${p.takenFrom === "camera" ? "Taken" : "File date"} ${fmtIST(p.takenAt)}` : "Capture time unknown"}</small>
+                  <small>
+                    {p.takenAt ? `${p.takenFrom === "camera" ? "Taken" : "File date"} ${fmtIST(p.takenAt)}` : "Capture time unknown"}
+                    {p.capture === "upload" && p.sha256 && " · from the tenant's gallery, added later"}
+                  </small>
                 </figcaption>
               </figure>
             ))}
@@ -70,8 +83,9 @@ export function OwnerRecord({ token, review, flat }: Props) {
         token={token}
         tenant={tenant}
         count={review.photos.length}
+        kind={out ? "moveout" : "movein"}
         defaultName={flat.ownerName}
-        answer={review.respondedAt ? { status: review.status === "disputed" ? "disputed" : "confirmed", name: review.ownerName, note: review.ownerNote, at: review.respondedAt.toISOString() } : null}
+        answer={review.respondedAt ? { status: review.status === "disputed" ? "disputed" : "confirmed", name: review.ownerName, role: review.ownerRole ?? "", note: review.ownerNote, at: review.respondedAt.toISOString() } : null}
       />
 
       <footer className="rp-foot">

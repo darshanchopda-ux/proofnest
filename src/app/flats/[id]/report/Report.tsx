@@ -2,6 +2,7 @@ import Link from "next/link";
 import { BrandMark, Icon } from "@/components/Icon";
 import { fmtDate, fmtIST as ist, money, plural } from "@/lib/format";
 import { roomStats } from "@/lib/guidance";
+import { daysLate, isEarlier } from "@/lib/photo-labels";
 import { CONDITIONS, type FlatDTO, type PhotoDTO } from "@/lib/types";
 import { EvidenceButton } from "@/components/EvidenceButton";
 import { PrintButton } from "./PrintButton";
@@ -13,8 +14,13 @@ export function Report({ flat }: { flat: FlatDTO }) {
   const count = (c: PhotoDTO["condition"]) => flat.photos.filter((p) => p.condition === c).length;
   const flagged = flat.photos.filter((p) => p.condition !== "good");
   const tenant = flat.tenantName || "The tenant";
-  const real = flat.photos.filter((p) => !p.isExample);
+  // Move-out photos are part of the evidence too: they go in the fingerprints, timestamps and certificate.
+  const real = [...flat.photos, ...flat.moveOutPhotos].filter((p) => !p.isExample);
   const live = real.filter((p) => p.capture === "live");
+  const earlier = real.filter(isEarlier);
+  const late = daysLate(flat.moveIn, flat.photos);
+  const outRooms = [...new Set(flat.moveOutPhotos.map((p) => p.room))];
+  const out = flat.moveOutAnswer;
   const stamped = real.filter((p) => p.timestampedAt);
   const authorities = [...new Set(stamped.map((p) => p.timestampBy))];
   const answer = flat.ownerAnswer;
@@ -62,6 +68,8 @@ export function Report({ flat }: { flat: FlatDTO }) {
             {plural(flat.photos.length, "photo")} of {plural(shot.length, "room")}, with {count("good")} in good condition, {count("worn")} worn and{" "}
             {count("damaged")} damaged. Each photo shows when it was taken, when it was added to ProofNest, and a fingerprint of the original
             file, so anyone can check later that it hasn&apos;t been changed.
+            {late > 1 && ` ${tenant} started this record ${plural(late, "day")} after moving in.`}
+            {earlier.length > 0 && ` ${plural(earlier.length, "photo")} marked “earlier” came from ${flat.tenantName ? `${flat.tenantName}'s` : "the tenant's"} gallery and can't be verified by ProofNest.`}
           </p>
         </header>
 
@@ -105,43 +113,39 @@ export function Report({ flat }: { flat: FlatDTO }) {
               <section className="rp-sec rp-room" key={room.name}>
                 <h2>{room.name} <small>{plural(room.count, "photo")}</small></h2>
                 <div className="rp-grid">
-                  {flat.photos.filter((p) => p.room === room.name).map((p) => (
-                    <figure className={`rp-photo c-${p.condition}`} key={p.id}>
-                      {p.src ? (
-                        // eslint-disable-next-line @next/next/no-img-element -- private, auth-checked image route; eager so it prints
-                        <img src={`${p.src}?w=1200`} alt={`Photo P${p.n}, ${p.room}`} loading="eager" />
-                      ) : (
-                        <div className="rp-ph">Example photo</div>
-                      )}
-                      <figcaption>
-                        <div className="rp-cap">
-                          <b>P{p.n}</b>
-                          <span className={`rp-cond c-${p.condition}`}>{CONDITIONS[p.condition]}</span>
-                        </div>
-                        {p.note && <p>{p.note}</p>}
-                        <small>
-                          {p.takenAt ? `${p.takenFrom === "camera" ? "Taken" : "File date"} ${ist(p.takenAt)}` : "Capture time unknown"}
-                          <br />
-                          Added to ProofNest {ist(p.addedAt)}
-                          {p.capture === "live" && <><br />Taken live in ProofNest&apos;s camera, stamped with code {p.dayCode}</>}
-                          {p.timestampedAt && <><br />Independently timestamped by {p.timestampBy} at {ist(p.timestampedAt)}</>}
-                        </small>
-                        {p.sha256 && <code>SHA-256 {p.sha256}</code>}
-                        {p.src && (
-                          <span className="rp-files no-print">
-                            <a href={p.src} download={`P${p.n}.jpg`}>Original file</a>
-                            {p.timestampedAt && <a href={`/api/photos/${p.id}/timestamp`}>Timestamp (.tsr)</a>}
-                          </span>
-                        )}
-                      </figcaption>
-                    </figure>
-                  ))}
+                  {flat.photos.filter((p) => p.room === room.name).map((p) => <Shot key={p.id} p={p} />)}
                 </div>
               </section>
             ))}
 
             {missing.length > 0 && (
               <p className="rp-missing">Not photographed: {missing.join(", ")}.</p>
+            )}
+
+            {flat.moveOutPhotos.length > 0 && (
+              <>
+                <section className="rp-sec rp-moveout">
+                  <h2>At move-out{flat.keysHandedOver ? ` (keys handed over ${fmtDate(flat.keysHandedOver)})` : ""}</h2>
+                  <p className="rp-intro">
+                    {plural(flat.moveOutPhotos.length, "photo")} taken live as the flat was handed back, to compare with the move-in photos above.
+                  </p>
+                  {out?.respondedAt && (
+                    <p className={`rp-owner ${out.status}`}>
+                      {out.status === "confirmed"
+                        ? `${out.ownerName} confirmed the handover photos ${out.photoNs.map((n) => `P${n}`).join(", ")} on ${ist(out.respondedAt)}.`
+                        : `${out.ownerName} disagreed with the handover photos on ${ist(out.respondedAt)}: “${out.ownerNote}”`}
+                    </p>
+                  )}
+                </section>
+                {outRooms.map((room) => (
+                  <section className="rp-sec rp-room" key={`out-${room}`}>
+                    <h2>{room} at move-out <small>{plural(flat.moveOutPhotos.filter((p) => p.room === room).length, "photo")}</small></h2>
+                    <div className="rp-grid">
+                      {flat.moveOutPhotos.filter((p) => p.room === room).map((p) => <Shot key={p.id} p={p} />)}
+                    </div>
+                  </section>
+                ))}
+              </>
             )}
 
             <section className="rp-sec rp-sign">
@@ -176,8 +180,9 @@ export function Report({ flat }: { flat: FlatDTO }) {
                   <b>Live capture.</b>{" "}
                   {live.length
                     ? `${plural(live.length, "photo")} ${live.length === 1 ? "was" : "were"} taken with ProofNest's camera screen, which prints the room, the time in IST and that day's code onto the photo. Day codes are made by ProofNest for each flat and day and can't be known in advance, so an image made earlier can't show one.`
-                    : "No photo was taken with ProofNest's camera screen; all were uploaded from the device."}{" "}
-                  {real.length - live.length > 0 && `${plural(real.length - live.length, "photo")} ${real.length - live.length === 1 ? "was" : "were"} uploaded from the device.`}
+                    : "No photo was taken with ProofNest's camera screen."}{" "}
+                  {earlier.length > 0 &&
+                    `${plural(earlier.length, "photo")} marked “earlier” ${earlier.length === 1 ? "was" : "were"} added from the tenant's gallery, from before they started using ProofNest. ProofNest can't confirm when ${earlier.length === 1 ? "it was" : "they were"} taken, so treat ${earlier.length === 1 ? "it" : "them"} as supporting evidence only.`}
                 </li>
                 <li>
                   <b>Upload times</b> come from ProofNest&apos;s server, not the phone, so changing the phone&apos;s clock doesn&apos;t change them.
@@ -223,8 +228,8 @@ export function Report({ flat }: { flat: FlatDTO }) {
                 <tbody>
                   {real.map((p) => (
                     <tr key={p.id}>
-                      <td>P{p.n}{p.capture === "live" ? " (live)" : ""}</td>
-                      <td>{p.room}</td>
+                      <td>P{p.n}{p.capture === "live" ? " (live)" : " (earlier)"}</td>
+                      <td>{p.room}{p.phase === "moveout" ? ", move-out" : ""}</td>
                       <td><code>{p.sha256 || "pending"}</code></td>
                       <td>{ist(p.addedAt)}</td>
                       <td>{p.timestampedAt ? `${ist(p.timestampedAt)}, ${p.timestampBy}` : "None"}</td>
@@ -246,5 +251,42 @@ export function Report({ flat }: { flat: FlatDTO }) {
         )}
       </article>
     </div>
+  );
+}
+
+/** One photo in the record, with everything needed to check it. */
+function Shot({ p }: { p: PhotoDTO }) {
+  return (
+    <figure className={`rp-photo c-${p.condition}`}>
+      {p.src ? (
+        // eslint-disable-next-line @next/next/no-img-element -- private, auth-checked image route; eager so it prints
+        <img src={`${p.src}?w=1200`} alt={`Photo P${p.n}, ${p.room}`} loading="eager" />
+      ) : (
+        <div className="rp-ph">Example photo</div>
+      )}
+      <figcaption>
+        <div className="rp-cap">
+          <b>P{p.n}</b>
+          <span className={`rp-cond c-${p.condition}`}>{CONDITIONS[p.condition]}</span>
+          {isEarlier(p) && <span className="rp-cond c-worn">Earlier · not verified</span>}
+        </div>
+        {p.note && <p>{p.note}</p>}
+        <small>
+          {p.takenAt ? `${p.takenFrom === "camera" ? "Taken" : "File date"} ${ist(p.takenAt)}` : "Capture time unknown"}
+          <br />
+          Added to ProofNest {ist(p.addedAt)}
+          {p.capture === "live" && <><br />Taken live in ProofNest&apos;s camera, stamped with code {p.dayCode}</>}
+          {isEarlier(p) && <><br />From the tenant&apos;s gallery; ProofNest can&apos;t confirm when it was taken</>}
+          {p.timestampedAt && <><br />Independently timestamped by {p.timestampBy} at {ist(p.timestampedAt)}</>}
+        </small>
+        {p.sha256 && <code>SHA-256 {p.sha256}</code>}
+        {p.src && (
+          <span className="rp-files no-print">
+            <a href={p.src} download={`P${p.n}.jpg`}>Original file</a>
+            {p.timestampedAt && <a href={`/api/photos/${p.id}/timestamp`}>Timestamp (.tsr)</a>}
+          </span>
+        )}
+      </figcaption>
+    </figure>
   );
 }

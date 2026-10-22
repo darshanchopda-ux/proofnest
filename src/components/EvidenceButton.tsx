@@ -21,7 +21,7 @@ export function EvidenceButton({ flat, className = "btn small ghost" }: { flat: 
     if (status) return;
     const enc = new TextEncoder();
     const entries: ZipEntry[] = [];
-    const photos = flat.photos.filter((p) => p.src);
+    const photos = [...flat.photos, ...flat.moveOutPhotos].filter((p) => p.src);
     const listed: Record<string, unknown>[] = [];
     let mismatched = 0;
     try {

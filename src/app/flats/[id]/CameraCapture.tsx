@@ -8,6 +8,8 @@ import { fmtIST, plural } from "@/lib/format";
 
 type Props = {
   room: string;
+  /** What the stamp and heading call this set of photos, e.g. "Kitchen · move-out". */
+  label?: string;
   /** Today's code for this flat, printed on every photo taken here. */
   code: string;
   onShot: (file: File) => void;
@@ -18,13 +20,16 @@ type Props = {
  * ProofNest's own camera screen. Photos come straight from the camera, never from the gallery, and each one has
  * the room, the time in IST and the day's code printed along the bottom, so an image made earlier can't pass as one.
  */
-export function CameraCapture({ room, code, onShot, onClose }: Props) {
+export function CameraCapture({ room, label = room, code, onShot, onClose }: Props) {
   const video = useRef<HTMLVideoElement>(null);
   const box = useRef<HTMLDivElement>(null);
+  const track = useRef<MediaStreamTrack | null>(null);
   const [error, setError] = useState("");
   const [ready, setReady] = useState(false);
   const [taken, setTaken] = useState(0);
   const [flash, setFlash] = useState(false);
+  const [torch, setTorch] = useState<"none" | "off" | "on">("none");
+  const [dark, setDark] = useState(false);
   useDialogFocus(box);
 
   useEffect(() => {
@@ -43,6 +48,10 @@ export function CameraCapture({ room, code, onShot, onClose }: Props) {
         if (cancelled || !video.current) return;
         video.current.srcObject = stream;
         await video.current.play();
+        track.current = stream.getVideoTracks()[0] ?? null;
+        // Phones that have a torch say so in the track's capabilities; most laptops don't.
+        const caps = track.current?.getCapabilities?.() as (MediaTrackCapabilities & { torch?: boolean }) | undefined;
+        if (caps?.torch) setTorch("off");
         setReady(true);
       } catch (e) {
         if (cancelled) return;
@@ -54,14 +63,39 @@ export function CameraCapture({ room, code, onShot, onClose }: Props) {
       }
     };
     void start();
+    // Every second, check how bright the picture is, so a photo too dark to show damage gets a warning first.
+    const probe = document.createElement("canvas");
+    probe.width = 32;
+    probe.height = 24;
+    const light = window.setInterval(() => {
+      const v = video.current;
+      const ctx = probe.getContext("2d", { willReadFrequently: true });
+      if (!v || !v.videoWidth || !ctx) return;
+      ctx.drawImage(v, 0, 0, 32, 24);
+      const px = ctx.getImageData(0, 0, 32, 24).data;
+      let sum = 0;
+      for (let i = 0; i < px.length; i += 4) sum += 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
+      setDark(sum / (px.length / 4) < 45);
+    }, 1000);
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
     return () => {
       cancelled = true;
+      window.clearInterval(light);
       stream?.getTracks().forEach((t) => t.stop());
       window.removeEventListener("keydown", onKey);
     };
   }, [onClose]);
+
+  async function toggleTorch() {
+    const next = torch === "on" ? "off" : "on";
+    try {
+      await track.current?.applyConstraints({ advanced: [{ torch: next === "on" } as MediaTrackConstraintSet] });
+      setTorch(next);
+    } catch {
+      setTorch("none");
+    }
+  }
 
   function shoot() {
     const v = video.current;
@@ -82,7 +116,7 @@ export function CameraCapture({ room, code, onShot, onClose }: Props) {
     ctx.font = `600 ${Math.round(band * 0.46)}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif`;
     ctx.textBaseline = "middle";
     const now = Date.now();
-    ctx.fillText(`ProofNest · ${room} · ${fmtIST(now)} · Code ${code}`, Math.round(band * 0.4), h - band / 2, w - band * 0.8);
+    ctx.fillText(`ProofNest · ${label} · ${fmtIST(now)} · Code ${code}`, Math.round(band * 0.4), h - band / 2, w - band * 0.8);
     canvas.toBlob(
       (blob) => {
         if (!blob) return;
@@ -100,10 +134,10 @@ export function CameraCapture({ room, code, onShot, onClose }: Props) {
   return createPortal(
     <>
       <div className="overlay" />
-      <div className="camera" ref={box} role="dialog" aria-modal="true" aria-label={`Take photos of the ${room}`}>
+      <div className="camera" ref={box} role="dialog" aria-modal="true" aria-label={`Take photos of the ${label}`}>
         <div className="cam-top">
           <div>
-            <b>{room}</b>
+            <b>{label}</b>
             <span>Today&apos;s code <code>{code}</code> is printed on every photo</span>
           </div>
           <button className="iconbtn" type="button" onClick={onClose} aria-label="Close the camera"><Icon name="close" small /></button>
@@ -111,6 +145,16 @@ export function CameraCapture({ room, code, onShot, onClose }: Props) {
         <div className={`cam-view ${flash ? "flash" : ""}`}>
           {error ? <p className="cam-msg">{error}</p> : <video ref={video} playsInline muted />}
           {!ready && !error && <p className="cam-msg">Starting the camera…</p>}
+          {ready && dark && (
+            <p className="cam-dark" role="status">
+              Too dark to show damage clearly. Switch on the lights{torch !== "none" ? " or the torch" : ""}, or open the curtains.
+            </p>
+          )}
+          {torch !== "none" && (
+            <button className="cam-torch" type="button" onClick={toggleTorch} aria-pressed={torch === "on"}>
+              {torch === "on" ? "Torch on" : "Torch"}
+            </button>
+          )}
         </div>
         <div className="cam-bar">
           <span>{taken ? `${plural(taken, "photo")} taken and saving` : "Stand in a corner so each photo shows two walls and the floor."}</span>

@@ -37,8 +37,14 @@ export function flatFacts(flat: Flat) {
   };
 }
 
+/** The room as the AI sees it, saying when a photo is from move-out or an unverified earlier gallery photo. */
+export function photoRoom(p: Photo): string {
+  if (p.phase === "moveout") return `${p.room} (move-out)`;
+  return p.capture === "live" || p.contentType === EXAMPLE_CONTENT_TYPE ? p.room : `${p.room} (earlier gallery photo, not verified)`;
+}
+
 export function photoMeta(p: Photo) {
-  return { n: p.n, room: p.room, condition: p.condition, note: p.note, takenAt: p.takenAt ? fmtIST(p.takenAt) : null };
+  return { n: p.n, room: photoRoom(p), condition: p.condition, note: p.note, takenAt: p.takenAt ? fmtIST(p.takenAt) : null };
 }
 
 /** Picks the photos most likely to matter for these deductions: rooms named in the list, then damaged or worn ones. */
@@ -67,7 +73,7 @@ export async function photoForAI(p: Photo): Promise<{ label: string; mediaType: 
     if (!blob || blob.statusCode !== 200) return null;
     const original = Buffer.from(await new Response(blob.stream).arrayBuffer());
     const small = await sharp(original).rotate().resize({ width: 1568, height: 1568, fit: "inside", withoutEnlargement: true }).jpeg({ quality: 80 }).toBuffer();
-    return { label: `P${p.n} (${p.room})`, mediaType: "image/jpeg", data: small.toString("base64") };
+    return { label: `P${p.n} (${photoRoom(p)})`, mediaType: "image/jpeg", data: small.toString("base64") };
   } catch (e) {
     console.error("Couldn't prepare photo for the AI", p.id, e);
     return null;

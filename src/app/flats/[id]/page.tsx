@@ -24,7 +24,7 @@ async function FlatLoader({ params, searchParams }: Props) {
   const user = await requireUser(`/flats/${id}`);
   const flat = await getFlatDTO(user.id, id);
   if (!flat) notFound();
-  const step: Step = query.step === "check" || query.step === "letter" ? query.step : "record";
+  const step: Step = query.step === "moveout" || query.step === "check" || query.step === "letter" ? query.step : "record";
   return (
     <FreshOnNavigate>
       <FlatWorkspace initialFlat={flat} initialStep={step} />

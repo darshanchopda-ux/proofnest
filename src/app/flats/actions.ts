@@ -218,6 +218,10 @@ export type RecordPhotoInput = {
   /** Set by the camera screen, with the day code it printed on the photo. */
   capture?: "live" | "upload";
   dayCode?: string;
+  /** Photos from the gallery taken before the tenant started using ProofNest. Kept, but marked not verified. */
+  earlier?: boolean;
+  /** Move-out photos are taken at handover and compared with the move-in ones. */
+  phase?: "movein" | "moveout";
 };
 
 /** Saves a photo that the browser has already uploaded to Blob storage under flats/<flatId>/. */
@@ -228,11 +232,19 @@ export async function recordPhoto(flatId: string, input: RecordPhotoInput): Prom
 
   const pathname = String(input.pathname ?? "");
   if (!pathname.startsWith(`flats/${flat.id}/photos/`) || pathname.includes("..")) return { ok: false, error: "That upload doesn't belong to this flat." };
-  const [existing] = await db.select({ id: photos.id }).from(photos).where(and(eq(photos.flatId, flat.id), eq(photos.blobPathname, pathname))).limit(1);
-  if (existing) return { ok: false, error: "That photo is already in your record." };
+  // A retry after a dropped connection gets the photo the first attempt already saved.
+  const [existing] = await db.select().from(photos).where(and(eq(photos.flatId, flat.id), eq(photos.blobPathname, pathname))).limit(1);
+  if (existing) return { ok: true, data: toPhotoDTO(existing) };
   if (!/^image\//.test(String(input.contentType))) return { ok: false, error: "Only photos can be added to rooms." };
   const room = clean(input.room, 40);
   if (!room) return { ok: false, error: "Pick a room for the photo." };
+  const phase = input.phase === "moveout" ? "moveout" : "movein";
+  // Photos come from ProofNest's live camera: a JPEG stamped with this flat's current day code, taken just now.
+  // The one exception is gallery photos from before the tenant started using ProofNest, which stay marked "not verified".
+  const earlier = input.earlier === true && phase === "movein";
+  const live = !earlier && input.capture === "live" && input.contentType === "image/jpeg" && isCurrentDayCode(flat.id, String(input.dayCode ?? ""));
+  if (!earlier && input.capture !== "live") return { ok: false, error: "Take photos with ProofNest's camera; gallery photos can't be added." };
+  if (!earlier && !live) return { ok: false, error: "That photo's day code has expired. Reopen the camera and take it again." };
 
   // Claim the next P-number atomically so two uploads never share one.
   const [claimed] = await db
@@ -245,11 +257,6 @@ export async function recordPhoto(flatId: string, input: RecordPhotoInput): Prom
     .where(and(eq(flats.id, flat.id), eq(flats.userId, user.id)))
     .returning({ next: flats.nextPhotoN });
 
-  // A live photo is a JPEG from the camera screen stamped with this flat's current day code; it was taken just now.
-  // Move-in photos must come from ProofNest's live camera: a JPEG stamped with this flat's current day code.
-  if (input.capture !== "live") return { ok: false, error: "Take photos with ProofNest's camera; gallery photos can't be added." };
-  const live = input.contentType === "image/jpeg" && isCurrentDayCode(flat.id, String(input.dayCode ?? ""));
-  if (!live) return { ok: false, error: "That photo's day code has expired. Reopen the camera and take it again." };
   // Only plausible capture times: cameras without a clock report the year 0, and a bad value would throw below.
   const takenMs = live ? Date.now() : typeof input.takenAt === "number" ? input.takenAt : NaN;
   const takenAt = Number.isFinite(takenMs) && takenMs >= Date.UTC(2000, 0, 1) && takenMs <= Date.now() + 86_400_000 ? new Date(takenMs) : null;
@@ -267,6 +274,7 @@ export async function recordPhoto(flatId: string, input: RecordPhotoInput): Prom
       takenFrom: live || (takenAt && input.takenFrom === "camera") ? "camera" : "file",
       capture: live ? "live" : "upload",
       dayCode: live ? String(input.dayCode) : "",
+      phase,
     })
     .returning();
   // After responding: fingerprint the stored file and get it timestamped by a public authority.
@@ -313,6 +321,15 @@ export async function setChargeDecision(flatId: string, chargeId: string, decisi
   return { ok: true, data: null };
 }
 
+/** Marks (or unmarks) the AI's reading of a charge as wrong. */
+export async function flagCharge(flatId: string, chargeId: string, flagged: boolean): Promise<Result> {
+  const user = await requireUser();
+  const flat = await getOwnedFlat(user.id, flatId);
+  if (!flat || !isUuid(chargeId)) return NOT_FOUND;
+  await db.update(charges).set({ aiFlagged: flagged === true }).where(and(eq(charges.id, chargeId), eq(charges.flatId, flat.id)));
+  return { ok: true, data: null };
+}
+
 export async function addCharge(flatId: string, item: string, amount: number): Promise<Result<ChargeDTO>> {
   const user = await requireUser();
   const flat = await getOwnedFlat(user.id, flatId);
@@ -341,17 +358,18 @@ export async function deleteCharge(flatId: string, chargeId: string): Promise<Re
 }
 
 /**
- * Returns the link for the owner to confirm the move-in record, making one if needed. A link that's still
+ * Returns the link for the owner to confirm the move-in (or move-out) record, making one if needed. A link that's still
  * waiting is reused while the photos are unchanged; otherwise a new one is made and an unanswered old one stops working.
  */
-export async function getOwnerReviewLink(flatId: string): Promise<Result<OwnerReviewDTO>> {
+export async function getOwnerReviewLink(flatId: string, kind: "movein" | "moveout" = "movein"): Promise<Result<OwnerReviewDTO>> {
   const user = await requireUser();
   const flat = await getOwnedFlat(user.id, flatId);
   if (!flat) return NOT_FOUND;
-  const rows = await db.select().from(photos).where(eq(photos.flatId, flat.id)).orderBy(asc(photos.n));
-  if (!rows.length) return { ok: false, error: "Add your move-in photos first, then ask your owner to confirm them." };
+  const phase = kind === "moveout" ? "moveout" : "movein";
+  const rows = await db.select().from(photos).where(and(eq(photos.flatId, flat.id), eq(photos.phase, phase))).orderBy(asc(photos.n));
+  if (!rows.length) return { ok: false, error: `Add your ${phase === "moveout" ? "move-out" : "move-in"} photos first, then ask your owner to confirm them.` };
 
-  const current = await latestReview(flat.id);
+  const current = await latestReview(flat.id, phase);
   if (current && current.status === "pending" && !current.revokedAt && !isStale(current, rows)) {
     return { ok: true, data: toOwnerReviewDTO(current, rows) };
   }
@@ -362,7 +380,7 @@ export async function getOwnerReviewLink(flatId: string): Promise<Result<OwnerRe
   const snapshot = snapshotPhotos(rows);
   const [row] = await db
     .insert(ownerReviews)
-    .values({ flatId: flat.id, token: newReviewToken(), photos: snapshot, recordHash: recordHash(snapshot) })
+    .values({ flatId: flat.id, kind: phase, token: newReviewToken(), photos: snapshot, recordHash: recordHash(snapshot) })
     .returning();
   return { ok: true, data: toOwnerReviewDTO(row, rows) };
 }
