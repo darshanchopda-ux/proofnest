@@ -96,7 +96,7 @@ export function nextAction(flat: FlatDTO): NextAction {
     const pdf: NextButton = { kind: "link", label: "Move-in record (PDF)", href: `/flats/${flat.id}/report`, icon: "download" };
     const r = flat.ownerReview;
     const a = flat.ownerAnswer;
-    if (r && !r.stale && r.status === "pending") {
+    if (r && !r.stale && !r.expired && r.status === "pending") {
       return {
         key: "waiting",
         icon: "chat",

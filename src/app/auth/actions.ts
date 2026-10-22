@@ -3,9 +3,10 @@
 import { and, desc, eq, gt, isNull, sql } from "drizzle-orm";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { db } from "@/db";
 import { phoneCodes, phoneLinks } from "@/db/schema";
-import { recordSignIn } from "@/lib/account";
+import { pruneOldRecords, recordSignIn } from "@/lib/account";
 import { checkPhoneCode, CODE_MINUTES } from "@/lib/phone-codes";
 import { auth } from "@/lib/auth/server";
 import { codeMatches, displayPhone, hashCode, newCode, normalizePhone, phoneAccount } from "@/lib/phone-login";
@@ -112,15 +113,27 @@ export async function verifyWhatsAppCode(phoneInput: string, codeInput: string, 
   if (err) return { ok: false, error: err };
 
   const accountPhone = link?.accountPhone ?? phone;
-  const { email, password } = phoneAccount(accountPhone);
+  const { email, password, legacy } = phoneAccount(accountPhone);
   const signedIn = await auth.signIn.email({ email, password });
   let userId = signedIn.data?.user?.id;
-  if (signedIn.error) {
+  let found = !signedIn.error;
+  // An account made with an older secret: sign in with that password once, then switch it to the current one.
+  for (const old of signedIn.error ? legacy : []) {
+    const moved = await auth.signIn.email({ email, password: old });
+    if (moved.error) continue;
+    found = true;
+    userId = moved.data?.user?.id;
+    const changed = await auth.changePassword({ currentPassword: old, newPassword: password, revokeOtherSessions: false });
+    if (changed.error) console.error("Couldn't move a phone account to the new secret", changed.error);
+    break;
+  }
+  if (!found) {
     const created = await auth.signUp.email({ name: displayPhone(accountPhone), email, password });
     if (created.error) return { ok: false, error: "Couldn't sign you in. Try again in a minute." };
     userId = created.data?.user?.id;
   }
   await recordSignIn(userId, "whatsapp", phone);
+  after(pruneOldRecords);
   redirect(safeNext(next));
 }
 

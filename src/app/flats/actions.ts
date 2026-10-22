@@ -9,7 +9,7 @@ import { removeBlobs, removeFolder } from "@/lib/blobs";
 import { isCurrentDayCode, sealMissing, sealPhoto } from "@/lib/evidence";
 import { isUuid, requireUser } from "@/lib/dal";
 import { EXAMPLE_CONTENT_TYPE, getOwnedFlat, toChargeDTO, toPhotoDTO, toRefundDTO } from "@/lib/flats";
-import { isStale, latestReview, newReviewToken, recordHash, snapshotPhotos, toOwnerReviewDTO } from "@/lib/owner-review";
+import { isStale, latestReview, linkExpired, newReviewToken, recordHash, snapshotPhotos, toOwnerReviewDTO } from "@/lib/owner-review";
 import { LETTER_LANGUAGES, type ChargeDTO, type Condition, type Decision, type FlatPatch, type NewFlatInput, type OwnerReviewDTO, type PhotoDTO, type RefundDTO } from "@/lib/types";
 
 export type Result<T = null> = { ok: true; data: T } | { ok: false; error: string };
@@ -401,7 +401,7 @@ export async function getOwnerReviewLink(flatId: string, kind: "movein" | "moveo
   if (!rows.length) return { ok: false, error: `Add your ${phase === "moveout" ? "move-out" : "move-in"} photos first, then ask your owner to confirm them.` };
 
   const current = await latestReview(flat.id, phase);
-  if (current && current.status === "pending" && !current.revokedAt && !isStale(current, rows)) {
+  if (current && current.status === "pending" && !current.revokedAt && !isStale(current, rows) && !linkExpired(current.createdAt)) {
     return { ok: true, data: toOwnerReviewDTO(current, rows) };
   }
   if (current && current.status === "pending" && !current.revokedAt) {

@@ -1,8 +1,9 @@
 "use server";
 
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, gt, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { ownerReviews } from "@/db/schema";
+import { LINK_DAYS } from "@/lib/owner-review";
 
 export type ReviewAnswer = { ok: true; status: "confirmed" | "disputed"; respondedAt: string } | { ok: false; error: string };
 
@@ -22,10 +23,17 @@ export async function answerOwnerReview(token: string, input: { decision: string
   const [row] = await db
     .update(ownerReviews)
     .set({ status: decision, ownerName: name, ownerRole: role, ownerNote: note, respondedAt: new Date() })
-    .where(and(eq(ownerReviews.token, token), eq(ownerReviews.status, "pending"), isNull(ownerReviews.revokedAt)))
+    .where(
+      and(
+        eq(ownerReviews.token, token),
+        eq(ownerReviews.status, "pending"),
+        isNull(ownerReviews.revokedAt),
+        gt(ownerReviews.createdAt, sql`now() - make_interval(days => ${LINK_DAYS})`),
+      ),
+    )
     .returning({ status: ownerReviews.status, respondedAt: ownerReviews.respondedAt });
   if (!row || !row.respondedAt || row.status === "pending") {
-    return { ok: false, error: "This link has already been answered, or the tenant has sent a newer one." };
+    return { ok: false, error: "This link has already been answered, has expired, or the tenant has sent a newer one." };
   }
   return { ok: true, status: row.status, respondedAt: row.respondedAt.toISOString() };
 }

@@ -21,12 +21,13 @@ export default function PrivacyPage() {
 
       <h2>What we keep, and why</h2>
       <ul>
-        <li><b>Your mobile number or email</b>, to sign you in. For WhatsApp sign-in we keep only a scrambled copy of each code, for 5 minutes.</li>
+        <li><b>Your mobile number or email</b>, to sign you in. For WhatsApp sign-in we keep only a scrambled copy of each code; it works for 5 minutes and is deleted within a day.</li>
         <li><b>Flat details you type</b>: address, names, dates, rent, deposit and payment reference, to build your record and letter.</li>
-        <li><b>Photos you take</b>, with when they were taken, a fingerprint (SHA-256) and a public timestamp, so they can serve as evidence.</li>
+        <li><b>Photos you take</b>, with when they were taken, a fingerprint (SHA-256) and a public timestamp, so they can serve as evidence. Location data is removed from gallery photos before upload.</li>
+        <li><b>Owner links</b> work for 30 days; after that the photos can&apos;t be opened from them.</li>
         <li><b>Your rent agreement</b>, if you upload it, so the AI can read its terms.</li>
         <li><b>The owner&apos;s answer</b> when they confirm your record: the name they type, who they say they are, and their note.</li>
-        <li><b>Sign-ins</b>: the device type, network address and time, so you can spot sign-ins that weren&apos;t you.</li>
+        <li><b>Sign-ins</b>: the device type, network address and time, so you can spot sign-ins that weren&apos;t you. Kept for 90 days.</li>
       </ul>
       <p>We don&apos;t sell your data, show ads, or use it for anything except running ProofNest for you.</p>
 

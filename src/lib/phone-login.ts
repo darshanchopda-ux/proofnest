@@ -1,9 +1,17 @@
 import "server-only";
 import { createHmac, randomInt, timingSafeEqual } from "node:crypto";
 
-function secret(label: string): string {
-  const base = process.env.NEON_AUTH_COOKIE_SECRET || process.env.N8N_WEBHOOK_SECRET;
+/**
+ * Phone sign-in has its own secret, so rotating the session-cookie secret doesn't lock anyone out and a leak of
+ * that secret doesn't open every phone account. Accounts made before it existed are moved over on their next sign-in.
+ */
+function baseSecret(): string {
+  const base = process.env.PHONE_LOGIN_SECRET || process.env.NEON_AUTH_COOKIE_SECRET;
   if (!base) throw new Error("No server secret configured for phone sign-in.");
+  return base;
+}
+
+function secret(label: string, base = baseSecret()): string {
   return `${label}:${base}`;
 }
 
@@ -44,9 +52,14 @@ export function codeMatches(phone: string, code: string, hash: string): boolean 
  * The account behind a phone number: an internal email and a password only the server can derive, so the
  * number itself, proven by the WhatsApp code, is the only way in.
  */
-export function phoneAccount(phone: string): { email: string; password: string } {
+export function phoneAccount(phone: string): { email: string; password: string; legacy: string[] } {
+  const derive = (base: string) => createHmac("sha256", secret("phone-password", base)).update(phone).digest("base64url");
+  // Passwords made with older secrets, tried once and then replaced (see verifyWhatsAppCode).
+  const older = [process.env.PHONE_LOGIN_SECRET_PREVIOUS, process.env.PHONE_LOGIN_SECRET ? process.env.NEON_AUTH_COOKIE_SECRET : undefined];
+  const password = derive(baseSecret());
   return {
     email: `wa${phone.replace(/\D/g, "")}@phone.proofnest.app`,
-    password: createHmac("sha256", secret("phone-password")).update(phone).digest("base64url"),
+    password,
+    legacy: [...new Set(older.filter((b): b is string => !!b).map(derive))].filter((p) => p !== password),
   };
 }

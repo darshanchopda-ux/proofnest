@@ -111,9 +111,12 @@ export function FlatWorkspace({ initialFlat, initialStep }: { initialFlat: FlatD
       for (const file of files) {
         try {
           const buf = await file.arrayBuffer();
-          const [hash, takenExif] = [await sha256Hex(buf), exifDate(buf)];
-          // Photos are stored as JPEG; gallery photos in other formats are converted first.
-          const blob: Blob = file.type === "image/jpeg" && file.size < 19.5 * 1024 * 1024 ? file : await toJpeg(file, 3200);
+          const takenExif = exifDate(buf);
+          // Photos are stored as JPEG. Gallery photos are always redrawn, which drops their EXIF data, including
+          // the GPS location phones save; the capture date is read first. Camera-screen photos never carry any.
+          const blob: Blob = !opts.earlier && file.type === "image/jpeg" && file.size < 19.5 * 1024 * 1024 ? file : await toJpeg(file, 3200, 0.92);
+          // The fingerprint is of the file actually stored.
+          const hash = await sha256Hex(blob === file ? buf : await blob.arrayBuffer());
           // On a weak connection the upload is tried again a few times before the photo counts as failed.
           const uploaded = await withRetry(() =>
             upload(`flats/${flat.id}/photos/${safeFileName(file.name)}.jpg`, blob, {

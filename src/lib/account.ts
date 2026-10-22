@@ -1,7 +1,24 @@
 import "server-only";
+import { lt, sql } from "drizzle-orm";
 import { headers } from "next/headers";
 import { db } from "@/db";
-import { signIns } from "@/db/schema";
+import { phoneCodes, signIns } from "@/db/schema";
+
+/** How long sign-in history and used or expired WhatsApp codes are kept (see /privacy). */
+export const SIGN_IN_DAYS = 90;
+
+/**
+ * Deletes sign-in history older than 90 days and WhatsApp codes older than a day (rate limits look back an hour at most).
+ * Runs after sign-ins, so nothing extra has to be scheduled.
+ */
+export async function pruneOldRecords() {
+  try {
+    await db.delete(phoneCodes).where(lt(phoneCodes.createdAt, sql`now() - interval '1 day'`));
+    await db.delete(signIns).where(lt(signIns.createdAt, sql`now() - make_interval(days => ${SIGN_IN_DAYS})`));
+  } catch (e) {
+    console.error("Couldn't prune old sign-in records", e);
+  }
+}
 
 /** The phone number behind a WhatsApp account's internal email ("wa919876543210@phone.proofnest.app"), or null. */
 export function accountPhoneOf(email: string): string | null {

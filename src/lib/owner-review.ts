@@ -1,10 +1,17 @@
 import "server-only";
 import { createHash, randomBytes } from "node:crypto";
-import { and, desc, eq, isNotNull, isNull } from "drizzle-orm";
+import { and, desc, eq, gt, isNotNull, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { flats, ownerReviews, type OwnerReview, type Photo, type ReviewPhoto } from "@/db/schema";
 import { fmtDate } from "@/lib/format";
 import type { OwnerReviewDTO } from "@/lib/types";
+
+/** Owner links stop working after this many days, so a forwarded link doesn't show the photos forever. */
+export const LINK_DAYS = 30;
+
+export function linkExpired(createdAt: Date): boolean {
+  return Date.now() - createdAt.getTime() > LINK_DAYS * 86_400_000;
+}
 
 export function newReviewToken(): string {
   return randomBytes(24).toString("base64url");
@@ -62,6 +69,7 @@ export function toOwnerReviewDTO(r: OwnerReview, current: Photo[]): OwnerReviewD
     respondedAt: r.respondedAt ? r.respondedAt.toISOString() : null,
     recordHash: r.recordHash,
     stale: isStale(r, current),
+    expired: linkExpired(r.createdAt),
   };
 }
 
@@ -83,7 +91,7 @@ export async function reviewByToken(token: string) {
     .select({ review: ownerReviews, flat: { id: flats.id, address: flats.address, ownerName: flats.ownerName, tenantName: flats.tenantName, moveIn: flats.moveIn, keysHandedOver: flats.keysHandedOver } })
     .from(ownerReviews)
     .innerJoin(flats, eq(ownerReviews.flatId, flats.id))
-    .where(and(eq(ownerReviews.token, token), isNull(ownerReviews.revokedAt)))
+    .where(and(eq(ownerReviews.token, token), isNull(ownerReviews.revokedAt), gt(ownerReviews.createdAt, sql`now() - make_interval(days => ${LINK_DAYS})`)))
     .limit(1);
   return row ?? null;
 }

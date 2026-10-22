@@ -105,7 +105,10 @@ export async function deleteAccount(confirm: string, password = ""): Promise<Don
   // The sign-in account goes first: if it can't be deleted, nothing else is, and the person is told why.
   // Phone accounts use their server-derived password; email accounts need a recent sign-in or their password.
   let removed = await auth.deleteUser({});
-  if (removed.error && (mine || password)) removed = await auth.deleteUser({ password: mine ? phoneAccount(mine).password : password });
+  for (const pw of mine ? [phoneAccount(mine).password, ...phoneAccount(mine).legacy] : password ? [password] : []) {
+    if (!removed.error) break;
+    removed = await auth.deleteUser({ password: pw });
+  }
   if (removed.error) {
     console.error("Couldn't delete the sign-in account", user.id, removed.error);
     return {

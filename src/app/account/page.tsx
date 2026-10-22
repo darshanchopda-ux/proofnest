@@ -62,7 +62,7 @@ async function AccountLoader() {
             ))}
           </ul>
         ) : (
-          <p className="hint">Sign-ins from now on are listed here.</p>
+          <p className="hint">Sign-ins from now on are listed here, for 90 days.</p>
         )}
         <p className="hint">Don&apos;t recognise one, or someone else used your phone? Sign out everywhere, then sign in again.</p>
         <SignOutEverywhere />

@@ -155,6 +155,8 @@ export type OwnerReviewDTO = {
   recordHash: string;
   /** True when the photos have changed since the link was made. */
   stale: boolean;
+  /** True once the link is too old to open (see LINK_DAYS); an answer given before then still counts. */
+  expired: boolean;
 };
 
 /** Fields the details panel may edit. */

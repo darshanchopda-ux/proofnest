@@ -94,10 +94,10 @@ export function OwnerConfirm({ flat, setFlat, kind }: { flat: FlatDTO; setFlat: 
         <div className="actions" style={{ margin: 0 }}>{newLinkButton("Get the owner link")}</div>
       </>
     );
-  } else if (r.status === "pending" && !r.stale) {
+  } else if (r.status === "pending" && !r.stale && !r.expired) {
     body = (
       <>
-        <p className="oc-state"><i className="dotp" />Waiting for {owner} to confirm {range}. Link made {fmtIST(r.createdAt)}.</p>
+        <p className="oc-state"><i className="dotp" />Waiting for {owner} to confirm {range}. Link made {fmtIST(r.createdAt)}; it works for 30 days.</p>
         {earlier && (
           <p>
             {earlier.status === "confirmed" ? `${by(earlier)} already confirmed ${span(earlier.photoNs)}` : `${by(earlier)} answered about ${span(earlier.photoNs)}`} on{" "}
@@ -110,7 +110,11 @@ export function OwnerConfirm({ flat, setFlat, kind }: { flat: FlatDTO; setFlat: 
   } else if (r.status === "pending") {
     body = (
       <>
-        <p className="oc-state">You&apos;ve changed your photos since making the link. Make a new one so {owner} confirms the latest record; the old link will stop working.</p>
+        <p className="oc-state">
+          {r.stale
+            ? `You've changed your photos since making the link. Make a new one so ${owner} confirms the latest record; the old link will stop working.`
+            : `The link expired before ${owner} answered (links work for 30 days). Make a new one and send it again.`}
+        </p>
         <div className="actions" style={{ margin: 0 }}>{newLinkButton("Make a new link")}</div>
       </>
     );
