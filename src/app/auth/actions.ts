@@ -44,6 +44,7 @@ export async function signUpWithEmail(_prev: AuthFormState, formData: FormData):
   const password = String(formData.get("password") ?? "");
   if (!name || !email) return { error: "Enter your name and email." };
   if (password.length < 8) return { error: "Use a password of at least 8 characters." };
+  if (!formData.get("consent")) return { error: "Tick the box to agree to the privacy notice." };
 
   const { data, error } = await auth.signUp.email({ name, email, password });
   if (error) return { error: error.message || "Couldn't create your account. Try again." };

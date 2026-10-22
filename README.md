@@ -63,3 +63,15 @@ People sign in with their mobile number: ProofNest sends a 6-digit code through 
 ## Status
 
 Phase 1 to 3 are in: sign-in, flats, rooms, photo upload with capture time and fingerprint, details, WhatsApp summary, the AI deduction check with per-charge decisions, the refund letter (AI or template), and rent agreement reading (key facts, clauses, terms to watch, and suggested flat details), whose clauses feed the check and the letter.
+
+## Before a public launch
+
+ProofNest runs on free and pilot services today. Before real tenants depend on it:
+
+- **WhatsApp sign-in.** Finish Meta business verification, move from the test number to a registered business number, and get the `proofnest_login` Authentication template approved on it. Unverified accounts can only message a few test recipients. Authentication messages are charged per conversation in India, so set a budget alert. Rotate `WHATSAPP_TOKEN` to a fresh system-user token and keep it only in Vercel.
+- **AI.** Move off Gemini's free tier to a paid key (or Vertex AI) so tenants' agreements and photos aren't used to improve Google's products, and so busy-quota errors stop. Update the privacy notice when you do. `AI_MODEL` and `AI_THINKING_LEVEL` change the model without editing n8n.
+- **n8n.** Move the three workflows (`n8n/workflows/*.json`) from the school's pilot instance to n8n Cloud or your own server, then update `N8N_WEBHOOK_BASE` and `N8N_WEBHOOK_SECRET`. Re-import `proofnest-letter.json` after any change to `n8n/src/letter-build.js` (the letter-language support needs it).
+- **Privacy.** Set `GRIEVANCE_CONTACT` to a monitored role address (not a personal one) so `/privacy` lists it, and review the notice with a lawyer against the DPDP Rules.
+- **Data location and backups.** Check the Neon and Vercel Blob regions, turn on Neon point-in-time restore, and test restoring a flat with its photos. Tenants can always download an evidence pack (photos, `.tsr` timestamps, manifest), so their proof doesn't depend on ProofNest staying online.
+- **Limits.** AI runs are capped at 30 per account per hour and WhatsApp codes at 3 per number per 15 minutes and 20 per connection per hour. `/status` shows whether sign-in, storage and AI are working.
+

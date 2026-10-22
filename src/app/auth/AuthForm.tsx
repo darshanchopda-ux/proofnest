@@ -51,6 +51,7 @@ function WhatsAppForm({ next }: { next: string }) {
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
   const [wait, setWait] = useState(0);
+  const [agreed, setAgreed] = useState(false);
   const [pending, start] = useTransition();
 
   useEffect(() => {
@@ -102,8 +103,9 @@ function WhatsAppForm({ next }: { next: string }) {
           </div>
           <p className="hint">Not an Indian number? Type it with + and the country code.</p>
         </div>
+        <Consent checked={agreed} onChange={setAgreed} />
         {error && <p className="status err" role="alert">{error}</p>}
-        <button className="btn accent big" type="submit" disabled={pending || !phone.trim()}>
+        <button className="btn accent big" type="submit" disabled={pending || !phone.trim() || !agreed}>
           <Icon name="chat" small />{pending ? "Sending…" : "Send code on WhatsApp"}
         </button>
       </form>
@@ -194,6 +196,7 @@ function EmailForm({ mode, next }: { mode: "sign-in" | "sign-up"; next: string }
         />
         {mode === "sign-up" && <p className="hint">At least 8 characters.</p>}
       </div>
+      {mode === "sign-up" && <Consent name="consent" />}
       {state?.error && <p className="status err" role="alert">{state.error}</p>}
       <button className="btn accent big" type="submit" disabled={pending}>
         {pending ? "One moment…" : mode === "sign-in" ? "Sign in" : "Create account"}
@@ -205,5 +208,23 @@ function EmailForm({ mode, next }: { mode: "sign-in" | "sign-up"; next: string }
         </Link>
       </p>
     </form>
+  );
+}
+
+/** Consent under the DPDP Act: plain words, a link to the full notice, and nothing pre-ticked. */
+function Consent({ checked, onChange, name }: { checked?: boolean; onChange?: (v: boolean) => void; name?: string }) {
+  return (
+    <label className="consent">
+      <input
+        type="checkbox"
+        name={name}
+        required
+        {...(onChange ? { checked: !!checked, onChange: (e) => onChange(e.target.checked) } : {})}
+      />
+      <span>
+        I agree that ProofNest keeps my number, flat details and photos to make my record, as the{" "}
+        <Link href="/privacy" target="_blank">privacy notice</Link> explains. I can delete everything at any time.
+      </span>
+    </label>
   );
 }

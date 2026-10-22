@@ -601,3 +601,21 @@ body:has(.owner-page) .usermenu { display: none; }
 .acc-add .btn { justify-self: start; }
 .usermenu a.who { text-decoration: none; }
 .usermenu a.who:hover { color: var(--ink); text-decoration: underline; }
+
+/* privacy and status pages */
+.prose h1 { font-size: 1.6rem; margin: 4px 0 12px; }
+.prose h2 { font-size: 1.1rem; margin: 26px 0 8px; }
+.prose p, .prose li { max-width: 68ch; }
+.prose ul { padding-left: 20px; display: grid; gap: 6px; }
+.foot a { color: inherit; }
+.status-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.status-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; padding: 12px 14px; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--sheet); }
+.status-list p { grid-column: 1 / -1; margin: 0; font-size: .9rem; color: var(--muted); }
+.status-list .st { font-size: .82rem; font-weight: 600; }
+.status-list .ok .st { color: var(--ok); }
+.status-list .slow .st { color: var(--warn); }
+.status-list .down .st { color: var(--bad); }
+.status-list .off .st { color: var(--muted); }
+.consent { display: flex; gap: 10px; align-items: flex-start; font-size: .86rem; color: var(--muted); cursor: pointer; }
+.consent input { width: 18px; height: 18px; margin-top: 2px; flex: none; accent-color: var(--accent); }
+.consent a { color: var(--accent-ink); }
