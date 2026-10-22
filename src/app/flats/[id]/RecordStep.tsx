@@ -46,11 +46,8 @@ export function RecordStep({ flat, setFlat, pending, freshIds, onFiles, onZoom, 
     <>
       <div className="panel-head">
         <div>
-          <div className="ttl"><h2>Move-in record</h2><span className="when">At move-in</span></div>
-          <p>
-            Photograph every room before you unpack. Each photo keeps its capture time and a fingerprint of the original file, so you can
-            show it was never edited.
-          </p>
+          <div className="ttl"><h2>Move-in record</h2></div>
+          <p>Photograph every room before you unpack. Each photo keeps when it was taken and a fingerprint of the file.</p>
         </div>
         <div className="head-actions">
           <button className="btn small ghost" type="button" onClick={onCopy}><Icon name="copy" small />WhatsApp message</button>

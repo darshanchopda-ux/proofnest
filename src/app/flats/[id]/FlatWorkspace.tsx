@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Icon } from "@/components/Icon";
 import { useToast } from "@/components/Toast";
 import { recordPhoto, updateFlat } from "@/app/flats/actions";
-import { coverage, isMoveOut, nextAction, stepStates, summaryText, totals, type NextButton } from "@/lib/guidance";
+import { isMoveOut, nextAction, stepStates, summaryText, totals, type NextButton } from "@/lib/guidance";
 import { depositMonths, fmtDate, money, plural, refundInfo } from "@/lib/format";
 import { exifDate, safeFileName, sha256Hex, toJpeg, UPLOADABLE } from "@/lib/photo-client";
 import { CONDITIONS, type AgreementDTO, type ChargeDTO, type FlatDTO, type FlatPatch, type PhotoDTO, type Step } from "@/lib/types";
@@ -335,80 +335,68 @@ function CaseHead({ flat, reading, onEdit, onAgreement }: { flat: FlatDTO; readi
     flat.keysHandedOver && `Keys handed over ${fmtDate(flat.keysHandedOver)}`,
   ].filter(Boolean);
   const months = depositMonths(flat.monthlyRent, flat.deposit);
-  let refundBox = null;
+  const review = flat.ownerReview;
+  let refundStat = null;
   if (refund) {
     const cls = refund.left < 0 ? "late" : refund.left <= 5 ? "soon" : "ok";
     const text = refund.left < 0 ? `Overdue by ${plural(-refund.left, "day")}` : refund.left === 0 ? "Due today" : `${plural(refund.left, "day")} left`;
-    refundBox = (
-      <div className={`kv ${cls}`}>
-        <span>Refund due</span>
-        <b>{fmtDate(refund.due)}</b>
-        <small><i className="dotp" />{text}</small>
+    refundStat = (
+      <div className={cls}>
+        <dt>Refund due</dt>
+        <dd>{fmtDate(refund.due)}<small>{text}</small></dd>
       </div>
     );
   } else if (isMoveOut(flat)) {
-    refundBox = (
-      <button className="kv kv-btn" type="button" onClick={onEdit}>
-        <span>Refund due</span>
-        <small><Icon name="plus" small />Add date</small>
-      </button>
+    refundStat = (
+      <div>
+        <dt>Refund due</dt>
+        <dd><button className="linkbtn" type="button" onClick={onEdit}>Add the date</button></dd>
+      </div>
     );
   }
   return (
     <section className="casehead enter">
-      <div className="ch-main">
-        <div className="ch-eyebrow">
-          <span className="eyebrow">{isMoveOut(flat) ? "Moving out" : "Moving in"}</span>
-          {flat.isExample && <span className="tag">Example</span>}
+      <div className="ch-top">
+        <div className="ch-main">
+          <h1 className="ch-title">{flat.address}{flat.isExample && <span className="tag">Example</span>}</h1>
+          <p className="ch-meta">{meta.length ? meta.join(" · ") : "Add the owner and dates in Edit details."}</p>
         </div>
-        <h1 className="ch-title">{flat.address}</h1>
-        <p className="ch-meta">{meta.length ? meta.join(" · ") : "Add the owner and dates in Edit details."}</p>
-      </div>
-      <div className="ch-side">
-        {flat.deposit && Number(flat.deposit) > 0 && (
-          <div className="kv">
-            <span>Security deposit</span>
-            <b>{money(flat.deposit)}</b>
-            {months && <small>{months}</small>}
-          </div>
-        )}
-        {refundBox}
-        {flat.ownerReview && (
-          <div className={`kv ${flat.ownerReview.status === "confirmed" ? "ok" : flat.ownerReview.status === "disputed" ? "soon" : ""}`}>
-            <span>Owner</span>
-            <b>{flat.ownerReview.status === "confirmed" ? "Confirmed" : flat.ownerReview.status === "disputed" ? "Disagreed" : "Asked"}</b>
-            <small>{flat.ownerReview.respondedAt ? fmtDate(flat.ownerReview.respondedAt) : "Waiting for an answer"}</small>
-          </div>
-        )}
-        <button className="kv kv-btn" type="button" onClick={onAgreement}>
-          <span>Rent agreement</span>
-          {reading ? (
-            <small>Reading…</small>
-          ) : flat.agreement ? (
-            <>
-              <b className="agok"><Icon name="check" small />Read</b>
-              <small className="muted-small">{plural(flat.agreement.clauses.length, "clause")}</small>
-            </>
-          ) : (
-            <small><Icon name="plus" small />Upload</small>
-          )}
-        </button>
-        <button className="btn ghost small ch-edit" type="button" onClick={onEdit}>
+        <button className="btn ghost small" type="button" onClick={onEdit}>
           <Icon name="edit" small />Edit details
         </button>
       </div>
+      <dl className="stats">
+        {flat.deposit && Number(flat.deposit) > 0 && (
+          <div>
+            <dt>Security deposit</dt>
+            <dd>{money(flat.deposit)}{months && <small>{months}</small>}</dd>
+          </div>
+        )}
+        {refundStat}
+        {review && (
+          <div className={review.status === "confirmed" ? "ok" : review.status === "disputed" ? "soon" : ""}>
+            <dt>Owner</dt>
+            <dd>
+              {review.status === "confirmed" ? "Confirmed" : review.status === "disputed" ? "Disagreed" : "Asked to confirm"}
+              <small>{review.respondedAt ? fmtDate(review.respondedAt) : "Waiting"}</small>
+            </dd>
+          </div>
+        )}
+        <div>
+          <dt>Rent agreement</dt>
+          <dd>
+            <button className="linkbtn" type="button" onClick={onAgreement}>
+              {reading ? "Reading…" : flat.agreement ? `Read · ${plural(flat.agreement.clauses.length, "clause")}` : "Add agreement"}
+            </button>
+          </dd>
+        </div>
+      </dl>
     </section>
   );
 }
 
 function Stepper({ flat, step, onStep }: { flat: FlatDTO; step: Step; onStep: (s: Step) => void }) {
   const states = stepStates(flat);
-  const cov = coverage(flat);
-  const subs: Record<Step, string> = {
-    record: `${plural(flat.photos.length, "photo")} · ${cov.covered}/${cov.total} rooms`,
-    check: flat.charges.length ? `${plural(flat.charges.length, "charge")} checked` : flat.deductionsText.trim() ? "Owner's list saved" : "Owner's list",
-    letter: states.letter === "done" ? "Draft saved" : "Not started",
-  };
   return (
     <nav className="stepper" aria-label="Steps">
       {STEPS.map((s) => (
@@ -422,7 +410,6 @@ function Stepper({ flat, step, onStep }: { flat: FlatDTO; step: Step; onStep: (s
           <span className="dot">{states[s.id] === "done" ? <Icon name="check" /> : s.n}</span>
           <span className="stx">
             <b><span className="long">{s.title}</span><span className="short">{s.short}</span></b>
-            <em>{subs[s.id]}</em>
           </span>
         </button>
       ))}
@@ -516,7 +503,6 @@ function NextCard({
   return (
     <section className="next enter" key={action.key} aria-label="What to do next">
       <div>
-        <small>What to do next</small>
         <b>{action.title}</b>
         <p>{action.text}</p>
       </div>

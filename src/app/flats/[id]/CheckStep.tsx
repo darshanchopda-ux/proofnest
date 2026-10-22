@@ -77,17 +77,14 @@ export function CheckStep({ flat, setFlat, patchFlat, check, screenshot, setScre
     <>
       <div className="panel-head">
         <div>
-          <div className="ttl"><h2>Check deductions</h2><span className="when">At move-out</span></div>
-          <p>
-            Paste the deductions your owner sent on WhatsApp, SMS or email. AI compares each charge with your move-in record and suggests
-            what to dispute. You make the final call on every charge.
-          </p>
+          <div className="ttl"><h2>Check deductions</h2></div>
+          <p>Paste the owner&apos;s message. AI checks each charge against your move-in record; you decide what to dispute.</p>
         </div>
       </div>
 
       <div className="two">
         <div className="subcard">
-          <div className="mini"><span>A</span>What does the owner want to deduct?</div>
+          <div className="mini">What the owner wants to deduct</div>
           <label className="sr" htmlFor="f-deductions">Owner&apos;s deductions</label>
           <textarea
             id="f-deductions"
@@ -119,7 +116,7 @@ export function CheckStep({ flat, setFlat, patchFlat, check, screenshot, setScre
         </div>
 
         <div className="subcard">
-          <div className="mini"><span>B</span>Evidence the AI will use</div>
+          <div className="mini">Evidence the AI will use</div>
           {real.length > 0 && (
             <div className="thumbs">
               {real.slice(0, 8).map((p) => (

@@ -153,11 +153,8 @@ function Head() {
   return (
     <div className="panel-head">
       <div>
-        <div className="ttl"><h2>Refund letter</h2><span className="when">At move-out</span></div>
-        <p>
-          Built from your decisions, citing your photo numbers and asking for the balance by bank transfer or UPI. Edit it freely: it saves as
-          you type.
-        </p>
+        <div className="ttl"><h2>Refund letter</h2></div>
+        <p>Built from your decisions and photo numbers. Edit it freely; it saves as you type.</p>
       </div>
     </div>
   );
