@@ -92,7 +92,7 @@ img { max-width: 100%; }
 .iconbtn:hover { color: var(--bad); border-color: var(--bad); }
 label.lab { display: block; font-weight: 600; font-size: .86rem; margin-bottom: 6px; }
 .hint { font-size: .8rem; color: var(--muted); margin-top: 6px; }
-input[type="text"], input[type="email"], input[type="password"], input[type="date"], input[type="number"], select, textarea { font: 400 .95rem/1.45 var(--body); color: var(--ink); background: var(--sheet); border: 1px solid var(--rule-strong); border-radius: var(--radius); padding: 9px 11px; width: 100%; min-width: 0; transition: border-color .15s, box-shadow .15s; }
+input[type="text"], input[type="email"], input[type="password"], input[type="date"], input[type="number"], input[type="tel"], select, textarea { font: 400 .95rem/1.45 var(--body); color: var(--ink); background: var(--sheet); border: 1px solid var(--rule-strong); border-radius: var(--radius); padding: 9px 11px; width: 100%; min-width: 0; transition: border-color .15s, box-shadow .15s; }
 textarea { line-height: 1.55; resize: vertical; }
 input:focus, select:focus, textarea:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
 input.filled { border-color: var(--ok); box-shadow: 0 0 0 3px var(--ok-soft); }
@@ -517,3 +517,13 @@ body:has(.owner-page) .usermenu { display: none; }
 .rp-table td code { font-size: .64rem; overflow-wrap: anywhere; word-break: break-all; }
 .rp-files { display: flex; gap: 12px; font-size: .78rem; }
 @media print { .rp-cert { break-before: page; } .rp-table { font-size: 8pt; } }
+
+/* sign in with WhatsApp */
+.auth-card { gap: 14px; }
+.auth-step { display: grid; gap: 14px; }
+.phone-field { display: flex; align-items: stretch; border: 1px solid var(--rule-strong); border-radius: var(--radius); background: var(--sheet); overflow: hidden; }
+.phone-field:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.phone-field span { display: grid; place-items: center; padding: 0 12px; background: var(--paper); border-right: 1px solid var(--rule); font-weight: 600; color: var(--muted); }
+.phone-field input { flex: 1; border: 0; border-radius: 0; box-shadow: none !important; font-size: 1.05rem; letter-spacing: .02em; }
+.code-input { font-family: var(--mono); font-size: 1.6rem !important; letter-spacing: .5em; text-align: center; padding: 12px !important; }
+.auth-alt { justify-self: center; font-size: .86rem; }

@@ -56,6 +56,10 @@ npm run db:migrate
 - `src/app/api/flats/[id]/agreement`: reads an uploaded rent agreement (PDF or page photos, or pasted text) through n8n and saves its key terms; `/agreement/files/[n]` serves its files privately
 - `n8n/`: the three workflows, their Code node sources and tests
 
+## Sign in with WhatsApp
+
+People sign in with their mobile number: ProofNest sends a 6-digit code through Meta's WhatsApp Cloud API (an approved *Authentication* template with a copy-code button), stores only a keyed hash of it (5 minutes, 5 tries, rate-limited per number and per connection), and on a match signs them in to the account for that number, creating it on first use. Email and password stay available. Set `WHATSAPP_TOKEN` and `WHATSAPP_PHONE_NUMBER_ID` (see `.env.example`); without them the live site shows email sign-in only.
+
 ## Status
 
 Phase 1 to 3 are in: sign-in, flats, rooms, photo upload with capture time and fingerprint, details, WhatsApp summary, the AI deduction check with per-charge decisions, the refund letter (AI or template), and rent agreement reading (key facts, clauses, terms to watch, and suggested flat details), whose clauses feed the check and the letter.

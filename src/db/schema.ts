@@ -174,6 +174,22 @@ export const ownerReviews = pgTable(
   (t) => [uniqueIndex("owner_reviews_token_uq").on(t.token), index("owner_reviews_flat_idx").on(t.flatId)],
 );
 
+/** One-time sign-in codes sent on WhatsApp. Only a keyed hash of each code is stored. */
+export const phoneCodes = pgTable(
+  "phone_codes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    phone: text("phone").notNull(),
+    codeHash: text("code_hash").notNull(),
+    attempts: integer("attempts").notNull().default(0),
+    ip: text("ip").notNull().default(""),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("phone_codes_phone_idx").on(t.phone, t.createdAt)],
+);
+
 export type Flat = typeof flats.$inferSelect;
 export type Photo = typeof photos.$inferSelect;
 export type Agreement = typeof agreements.$inferSelect;
