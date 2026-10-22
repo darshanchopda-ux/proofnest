@@ -40,6 +40,12 @@ export const flats = pgTable(
     monthlyRent: numeric("monthly_rent", { precision: 12, scale: 2 }),
     deposit: numeric("deposit", { precision: 12, scale: 2 }),
     refundDays: integer("refund_days"),
+    // Proof of the deposit itself: when and to whom it was paid, the UPI or bank reference, and who holds it now.
+    depositPaidOn: date("deposit_paid_on"),
+    depositPaidTo: text("deposit_paid_to").notNull().default(""),
+    depositRef: text("deposit_ref").notNull().default(""),
+    depositHolder: text("deposit_holder").notNull().default(""),
+    letterLanguage: text("letter_language").notNull().default("English"),
     rooms: text("rooms").array().notNull().default(sql`ARRAY['Entrance','Hall','Kitchen','Bedroom','Bathroom','Balcony']::text[]`),
     nextPhotoN: integer("next_photo_n").notNull().default(1),
     evidenceNotes: text("evidence_notes").notNull().default(""),
@@ -63,6 +69,8 @@ export const photos = pgTable(
     condition: photoCondition("condition").notNull().default("good"),
     note: text("note").notNull().default(""),
     blobPathname: text("blob_pathname").notNull(),
+    // "movein" for the move-in record, "moveout" for photos taken at key handover.
+    phase: text("phase").notNull().default("movein"),
     contentType: text("content_type").notNull(),
     sizeBytes: integer("size_bytes").notNull(),
     // SHA-256 of the original file, computed in the browser before upload.
@@ -124,6 +132,8 @@ export const charges = pgTable(
     photoNs: integer("photo_ns").array().notNull().default(sql`'{}'::integer[]`),
     reason: text("reason").notNull().default(""),
     confidence: real("confidence"),
+    // The tenant marked the AI's verdict on this charge as wrong.
+    aiFlagged: boolean("ai_flagged").notNull().default(false),
     // "ai" when the AI check produced it, "manual" when the tenant added it.
     source: text("source").notNull().default("ai"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -164,14 +174,84 @@ export const ownerReviews = pgTable(
     photos: jsonb("photos").$type<ReviewPhoto[]>().notNull(),
     // SHA-256 of the photo list above, so the record the owner confirmed can be identified later.
     recordHash: text("record_hash").notNull(),
+    // "movein" for the move-in record, "moveout" for the condition at key handover.
+    kind: text("kind").notNull().default("movein"),
     status: ownerReviewStatus("status").notNull().default("pending"),
     ownerName: text("owner_name").notNull().default(""),
     ownerNote: text("owner_note").notNull().default(""),
+    // Who answered: "owner", "agent" (broker or manager) or "family".
+    ownerRole: text("owner_role").notNull().default(""),
     respondedAt: timestamp("responded_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     revokedAt: timestamp("revoked_at", { withTimezone: true }),
   },
   (t) => [uniqueIndex("owner_reviews_token_uq").on(t.token), index("owner_reviews_flat_idx").on(t.flatId)],
+);
+
+/** Money back from the owner after move-out, and anything they hold back (for example for a final bill). */
+export const refundEntries = pgTable(
+  "refund_entries",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    flatId: uuid("flat_id").notNull().references(() => flats.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(), // "received" | "held"
+    amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
+    on: date("on"),
+    note: text("note").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("refund_entries_flat_idx").on(t.flatId)],
+);
+
+/** Flatmates who share a flat with its creator, and their share of the deposit. */
+export const flatMembers = pgTable(
+  "flat_members",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    flatId: uuid("flat_id").notNull().references(() => flats.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").notNull(),
+    name: text("name").notNull().default(""),
+    depositShare: numeric("deposit_share", { precision: 12, scale: 2 }),
+    joinedAt: timestamp("joined_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("flat_members_flat_user_uq").on(t.flatId, t.userId), index("flat_members_user_idx").on(t.userId)],
+);
+
+/** Single-use links that let a flatmate join a flat. */
+export const flatInvites = pgTable(
+  "flat_invites",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    flatId: uuid("flat_id").notNull().references(() => flats.id, { onDelete: "cascade" }),
+    token: text("token").notNull(),
+    createdBy: uuid("created_by").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+  },
+  (t) => [uniqueIndex("flat_invites_token_uq").on(t.token)],
+);
+
+/** Extra numbers that sign in to an existing WhatsApp account, and numbers switched off (for a lost SIM). */
+export const phoneLinks = pgTable("phone_links", {
+  phone: text("phone").primaryKey(),
+  accountPhone: text("account_phone").notNull(),
+  disabledAt: timestamp("disabled_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** Each successful sign-in, so people can see where their account was used. */
+export const signIns = pgTable(
+  "sign_ins",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id").notNull(),
+    method: text("method").notNull(),
+    phone: text("phone").notNull().default(""),
+    device: text("device").notNull().default(""),
+    ip: text("ip").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("sign_ins_user_idx").on(t.userId, t.createdAt)],
 );
 
 /** One-time sign-in codes sent on WhatsApp. Only a keyed hash of each code is stored. */
@@ -195,3 +275,5 @@ export type Photo = typeof photos.$inferSelect;
 export type Agreement = typeof agreements.$inferSelect;
 export type Charge = typeof charges.$inferSelect;
 export type OwnerReview = typeof ownerReviews.$inferSelect;
+export type RefundEntry = typeof refundEntries.$inferSelect;
+export type FlatMember = typeof flatMembers.$inferSelect;

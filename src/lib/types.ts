@@ -21,6 +21,8 @@ export type PhotoDTO = {
   addedAt: string;
   /** "live" when taken with ProofNest's camera screen, stamped with the day code; "upload" for any other file. */
   capture: "live" | "upload";
+  /** Taken for the move-in record, or at key handover. */
+  phase: "movein" | "moveout";
   dayCode: string;
   /** When a public timestamp authority signed this photo's fingerprint, and which one. */
   timestampedAt: string | null;
@@ -112,6 +114,10 @@ export type OwnerReviewDTO = {
   /** Secret part of the owner's link: /confirm/<token>. */
   token: string;
   status: "pending" | "confirmed" | "disputed";
+  /** Which record the owner was asked about. */
+  kind: "movein" | "moveout";
+  /** Who answered: "owner", "agent" or "family" ("" if they didn't say). */
+  ownerRole: string;
   /** The P-numbers the owner was shown. */
   photoNs: number[];
   ownerName: string;

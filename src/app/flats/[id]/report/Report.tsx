@@ -3,6 +3,7 @@ import { BrandMark, Icon } from "@/components/Icon";
 import { fmtDate, fmtIST as ist, money, plural } from "@/lib/format";
 import { roomStats } from "@/lib/guidance";
 import { CONDITIONS, type FlatDTO, type PhotoDTO } from "@/lib/types";
+import { EvidenceButton } from "@/components/EvidenceButton";
 import { PrintButton } from "./PrintButton";
 
 export function Report({ flat }: { flat: FlatDTO }) {
@@ -37,6 +38,7 @@ export function Report({ flat }: { flat: FlatDTO }) {
         </Link>
         <div className="rp-bar-main">
           <PrintButton fileName={`Move-in record - ${flat.address}`.slice(0, 120)} />
+          {real.length > 0 && <EvidenceButton flat={flat} />}
           <p className="hint" style={{ margin: 0 }}>
             Choose <b>Save as PDF</b> as the printer, then send the PDF to your owner on WhatsApp or email on the day you move in. Ask them to
             reply that they received it.

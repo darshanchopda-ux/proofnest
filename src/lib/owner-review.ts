@@ -35,6 +35,8 @@ export function toOwnerReviewDTO(r: OwnerReview, current: Photo[]): OwnerReviewD
   return {
     token: r.token,
     status: r.status,
+    kind: r.kind === "moveout" ? "moveout" : "movein",
+    ownerRole: r.ownerRole,
     photoNs: r.photos.map((p) => p.n),
     ownerName: r.ownerName,
     ownerNote: r.ownerNote,

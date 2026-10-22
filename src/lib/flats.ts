@@ -39,6 +39,7 @@ export function toPhotoDTO(p: Photo): PhotoDTO {
     takenFrom: p.takenFrom,
     addedAt: p.addedAt.toISOString(),
     capture: p.capture === "live" ? "live" : "upload",
+    phase: p.phase === "moveout" ? "moveout" : "movein",
     dayCode: p.dayCode,
     timestampedAt: p.tsaTime ? p.tsaTime.toISOString() : null,
     timestampBy: p.tsaAuthority,

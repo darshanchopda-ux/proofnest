@@ -9,6 +9,7 @@ import { roomStats, withRecordChanged } from "@/lib/guidance";
 import { scheduleSave, sendOnUnload } from "@/lib/pending-saves";
 import { fmtDate, plural } from "@/lib/format";
 import { CONDITIONS, type Condition, type FlatDTO, type FlatPatch, type PhotoDTO } from "@/lib/types";
+import { EvidenceButton } from "@/components/EvidenceButton";
 import { OwnerConfirm } from "./OwnerConfirm";
 
 type Props = {
@@ -56,6 +57,7 @@ export function RecordStep({ flat, setFlat, pending, freshIds, onCamera, onZoom,
           {flat.photos.length > 0 && (
             <Link className="btn small ghost" href={`/flats/${flat.id}/report`}><Icon name="download" small />Move-in record (PDF)</Link>
           )}
+          {flat.photos.some((p) => p.src) && <EvidenceButton flat={flat} />}
         </div>
       </div>
 
