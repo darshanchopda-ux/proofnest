@@ -180,7 +180,7 @@ export async function updateFlat(flatId: string, patch: FlatPatch): Promise<Resu
   if ("depositHolder" in patch) values.depositHolder = clean(patch.depositHolder, 160);
   if ("letterLanguage" in patch) values.letterLanguage = LETTER_LANGUAGES.includes(String(patch.letterLanguage)) ? String(patch.letterLanguage) : "English";
 
-  await db.update(flats).set(values).where(and(eq(flats.id, flat.id), eq(flats.userId, user.id)));
+  await db.update(flats).set(values).where(eq(flats.id, flat.id));
   return { ok: true, data: null };
 }
 
@@ -259,7 +259,7 @@ export async function recordPhoto(flatId: string, input: RecordPhotoInput): Prom
       rooms: flat.rooms.includes(room) ? flat.rooms : [...flat.rooms, room],
       updatedAt: new Date(),
     })
-    .where(and(eq(flats.id, flat.id), eq(flats.userId, user.id)))
+    .where(eq(flats.id, flat.id))
     .returning({ next: flats.nextPhotoN });
 
   // Only plausible capture times: cameras without a clock report the year 0, and a bad value would throw below.
@@ -437,8 +437,9 @@ export async function deleteFlat(flatId: string): Promise<Result> {
   const user = await requireUser();
   const flat = await getOwnedFlat(user.id, flatId);
   if (!flat) return NOT_FOUND;
+  if (flat.userId !== user.id) return { ok: false, error: "Only the flatmate who added this flat can delete it. You can leave it instead." };
   // Delete the rows first, then every file in the flat's folder, including uploads that were never recorded.
-  await db.delete(flats).where(and(eq(flats.id, flat.id), eq(flats.userId, user.id)));
-  await removeFolder(`flats/${flat.id}/`);
+  const gone = await db.delete(flats).where(and(eq(flats.id, flat.id), eq(flats.userId, user.id))).returning({ id: flats.id });
+  if (gone.length) await removeFolder(`flats/${flat.id}/`);
   redirect("/");
 }

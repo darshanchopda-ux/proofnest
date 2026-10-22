@@ -1,5 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
+import { canOpen } from "@/lib/flats";
 import { flats, photos } from "@/db/schema";
 import { getCurrentUser, isUuid } from "@/lib/dal";
 
@@ -13,7 +14,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     .select({ n: photos.n, token: photos.tsaToken })
     .from(photos)
     .innerJoin(flats, eq(photos.flatId, flats.id))
-    .where(and(eq(photos.id, id), eq(flats.userId, user.id)))
+    .where(and(eq(photos.id, id), canOpen(user.id)))
     .limit(1);
   if (!row?.token) return new Response("This photo hasn't been timestamped yet.", { status: 404 });
   return new Response(new Uint8Array(Buffer.from(row.token, "base64")), {

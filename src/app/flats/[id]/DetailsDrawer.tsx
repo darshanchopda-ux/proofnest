@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition, type Dispatch, type SetStateAction } from "react";
 import { Icon } from "@/components/Icon";
 import { useToast } from "@/components/Toast";
 import { deleteFlat } from "@/app/flats/actions";
 import { useDialogFocus } from "@/components/useDialogFocus";
 import { depositMonths } from "@/lib/format";
 import type { FlatDTO, FlatPatch } from "@/lib/types";
+import { Flatmates } from "./Flatmates";
 
 type Field =
   | "address"
@@ -24,10 +25,12 @@ type Field =
 
 export function DetailsDrawer({
   flat,
+  setFlat,
   patchFlat,
   onClose,
 }: {
   flat: FlatDTO;
+  setFlat: Dispatch<SetStateAction<FlatDTO>>;
   patchFlat: (patch: FlatPatch, delay?: number) => void;
   onClose: () => void;
 }) {
@@ -124,19 +127,22 @@ export function DetailsDrawer({
               "Leave empty if it's the owner. If the flat was sold, the owner lives abroad or a broker took the deposit, write who has it now.",
             )}
           </div>
-          <div className="sec">
-            <p className="hint" style={{ margin: 0 }}>Deleting removes this flat and its photos for good.</p>
-            <button
-              className={`btn small ghost danger ${armed ? "armed" : ""}`}
-              type="button"
-              onClick={remove}
-              disabled={deleting}
-              style={{ justifySelf: "start" }}
-            >
-              <Icon name="trash" small />
-              {deleting ? "Deleting…" : armed ? "Click again to delete for good" : "Delete this flat"}
-            </button>
-          </div>
+          <Flatmates flat={flat} setFlat={setFlat} />
+          {flat.access === "owner" && (
+            <div className="sec">
+              <p className="hint" style={{ margin: 0 }}>Deleting removes this flat and its photos for good, for your flatmates too.</p>
+              <button
+                className={`btn small ghost danger ${armed ? "armed" : ""}`}
+                type="button"
+                onClick={remove}
+                disabled={deleting}
+                style={{ justifySelf: "start" }}
+              >
+                <Icon name="trash" small />
+                {deleting ? "Deleting…" : armed ? "Click again to delete for good" : "Delete this flat"}
+              </button>
+            </div>
+          )}
         </div>
       </aside>
     </>

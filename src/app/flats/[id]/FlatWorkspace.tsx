@@ -405,7 +405,7 @@ export function FlatWorkspace({ initialFlat, initialStep }: { initialFlat: FlatD
         {step === "letter" && <LetterStep flat={flat} setFlat={setFlat} patchFlat={patchFlat} onStep={goStep} onCopy={copyLetter} />}
       </section>
       </div>
-      {drawerOpen && <DetailsDrawer flat={flat} patchFlat={patchFlat} onClose={() => setDrawerOpen(false)} />}
+      {drawerOpen && <DetailsDrawer flat={flat} setFlat={setFlat} patchFlat={patchFlat} onClose={() => setDrawerOpen(false)} />}
       {camera && (
         <CameraCapture
           room={camera.room}

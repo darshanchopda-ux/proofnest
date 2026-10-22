@@ -104,7 +104,13 @@ export type FlatDTO = {
   letterLanguage: string;
   /** Money received back, and amounts the owner says they're keeping. */
   refunds: RefundDTO[];
+  /** "owner" for the tenant who made this flat in ProofNest; "member" for a flatmate who joined it. */
+  access: "owner" | "member";
+  members: MemberDTO[];
 };
+
+/** A flatmate who joined through an invite link, and their part of the deposit. */
+export type MemberDTO = { id: string; name: string; depositShare: number | null; isYou: boolean };
 
 export type RefundDTO = { id: string; kind: "received" | "held"; amount: number; on: string | null; note: string };
 

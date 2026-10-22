@@ -76,7 +76,7 @@ async function YourFlats() {
             <b>{f.address}</b>
             <span>
               {f.stage === "moveout" ? "Moving out" : "Moving in"}
-              {f.isExample ? " · Example" : ""} · Added {fmtDate(f.createdAt)}
+              {f.isExample ? " · Example" : ""}{f.userId !== user.id ? " · Shared by a flatmate" : ""} · Added {fmtDate(f.createdAt)}
             </span>
           </Link>
         ))}

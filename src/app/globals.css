@@ -577,3 +577,13 @@ body:has(.owner-page) .usermenu { display: none; }
 .rf-add { display: grid; grid-template-columns: 1.1fr .8fr .9fr 1.4fr auto; gap: 8px; }
 @media (max-width: 640px) { .rf-add { grid-template-columns: 1fr 1fr; } .rf-add .btn { grid-column: span 2; } .rf-sum dd { font-size: .95rem; } }
 .chip.ok { color: var(--ok); background: var(--ok-soft); }
+
+/* flatmates and invites */
+.wrap.narrow { max-width: 560px; padding-top: 40px; padding-bottom: 60px; }
+.join h1 { font-size: 1.6rem; margin: 4px 0 10px; }
+.join-form { display: grid; gap: 10px; margin-top: 20px; }
+.join-form .btn { justify-self: start; }
+.fm-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.fm-list li { display: grid; grid-template-columns: minmax(0, 1fr) 130px auto; align-items: center; gap: 8px; }
+.fm-link { display: grid; gap: 8px; }
+.fm-link code { font-family: var(--mono); font-size: .76rem; padding: 8px 10px; background: var(--paper); border-radius: 6px; overflow-wrap: anywhere; }

@@ -1,26 +1,37 @@
 import "server-only";
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, or, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { agreements, charges, flats, photos, refundEntries, type Agreement, type Charge, type Flat, type Photo, type RefundEntry } from "@/db/schema";
-import type { AgreementDTO, ChargeDTO, FlatDTO, PhotoDTO, RefundDTO } from "@/lib/types";
+import { agreements, charges, flatMembers, flats, photos, refundEntries, type Agreement, type Charge, type Flat, type Photo, type RefundEntry } from "@/db/schema";
+import type { AgreementDTO, ChargeDTO, FlatDTO, MemberDTO, PhotoDTO, RefundDTO } from "@/lib/types";
 import { isUuid } from "@/lib/dal";
 import { dayCode } from "@/lib/evidence";
 import { latestAnswered, latestReview, toOwnerReviewDTO } from "@/lib/owner-review";
 
 export const EXAMPLE_CONTENT_TYPE = "example";
 
+/** Flats the user may open: their own, and flats they joined as a flatmate through an invite link. */
+export function canOpen(userId: string) {
+  return or(
+    eq(flats.userId, userId),
+    sql`exists (select 1 from ${flatMembers} where ${flatMembers.flatId} = ${flats.id} and ${flatMembers.userId} = ${userId})`,
+  );
+}
+
 export async function listFlats(userId: string) {
   return db
-    .select({ id: flats.id, address: flats.address, isExample: flats.isExample, stage: flats.stage, createdAt: flats.createdAt })
+    .select({ id: flats.id, address: flats.address, isExample: flats.isExample, stage: flats.stage, createdAt: flats.createdAt, userId: flats.userId })
     .from(flats)
-    .where(eq(flats.userId, userId))
+    .where(canOpen(userId))
     .orderBy(desc(flats.createdAt));
 }
 
-/** The flat if it exists and belongs to the user, otherwise null. */
+/**
+ * The flat if it exists and the user may work on it (they made it, or joined it as a flatmate), otherwise null.
+ * Only the person who made the flat may delete it or manage flatmates: check `flat.userId === user.id` for those.
+ */
 export async function getOwnedFlat(userId: string, flatId: string): Promise<Flat | null> {
   if (!isUuid(flatId)) return null;
-  const [flat] = await db.select().from(flats).where(and(eq(flats.id, flatId), eq(flats.userId, userId))).limit(1);
+  const [flat] = await db.select().from(flats).where(and(eq(flats.id, flatId), canOpen(userId))).limit(1);
   return flat ?? null;
 }
 
@@ -86,7 +97,7 @@ export async function listCharges(flatId: string): Promise<ChargeDTO[]> {
 export async function getFlatDTO(userId: string, flatId: string): Promise<FlatDTO | null> {
   const flat = await getOwnedFlat(userId, flatId);
   if (!flat) return null;
-  const [allPhotos, agreementRows, chargeList, review, answered, outReview, outAnswered, refundRows] = await Promise.all([
+  const [allPhotos, agreementRows, chargeList, review, answered, outReview, outAnswered, refundRows, memberRows] = await Promise.all([
     db.select().from(photos).where(eq(photos.flatId, flat.id)).orderBy(asc(photos.n)),
     db.select().from(agreements).where(eq(agreements.flatId, flat.id)).limit(1),
     listCharges(flat.id),
@@ -95,6 +106,7 @@ export async function getFlatDTO(userId: string, flatId: string): Promise<FlatDT
     latestReview(flat.id, "moveout"),
     latestAnswered(flat.id, "moveout"),
     db.select().from(refundEntries).where(eq(refundEntries.flatId, flat.id)).orderBy(asc(refundEntries.on), asc(refundEntries.createdAt)),
+    db.select().from(flatMembers).where(eq(flatMembers.flatId, flat.id)).orderBy(asc(flatMembers.joinedAt)),
   ]);
   const photoRows = allPhotos.filter((p) => p.phase !== "moveout");
   const outRows = allPhotos.filter((p) => p.phase === "moveout");
@@ -130,5 +142,9 @@ export async function getFlatDTO(userId: string, flatId: string): Promise<FlatDT
     depositHolder: flat.depositHolder,
     letterLanguage: flat.letterLanguage,
     refunds: refundRows.map(toRefundDTO),
+    access: flat.userId === userId ? "owner" : "member",
+    members: memberRows.map(
+      (m): MemberDTO => ({ id: m.id, name: m.name, depositShare: m.depositShare == null ? null : Number(m.depositShare), isYou: m.userId === userId }),
+    ),
   };
 }

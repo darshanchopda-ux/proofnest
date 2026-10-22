@@ -3,7 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { flats, photos } from "@/db/schema";
 import { getCurrentUser, isUuid } from "@/lib/dal";
-import { EXAMPLE_CONTENT_TYPE } from "@/lib/flats";
+import { canOpen, EXAMPLE_CONTENT_TYPE } from "@/lib/flats";
 import { photoResponse } from "@/lib/photo-response";
 
 /** Streams a private photo to its owner. Photos are never served from a public URL. */
@@ -17,7 +17,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     .select({ pathname: photos.blobPathname, contentType: photos.contentType })
     .from(photos)
     .innerJoin(flats, eq(photos.flatId, flats.id))
-    .where(and(eq(photos.id, id), eq(flats.userId, user.id)))
+    .where(and(eq(photos.id, id), canOpen(user.id)))
     .limit(1);
   if (!row || row.contentType === EXAMPLE_CONTENT_TYPE || !row.pathname) return new Response("Not found", { status: 404 });
 
